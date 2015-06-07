@@ -19,9 +19,9 @@
 // #define CTRX_EXTRA_SAFE // additional safety checks, not needed by the responsible programmer
 
 struct uiAlphabetize {
-    inline bool operator()(SelectableElement a, SelectableElement b) {
-        return strcasecmp(a.name.c_str(), b.name.c_str()) < 0;
-    }
+	inline bool operator()(SelectableElement a, SelectableElement b) {
+		return strcasecmp(a.name.c_str(), b.name.c_str()) < 0;
+	}
 };
 
 std::string uiTruncateString(const std::string str, int nsize, int pos) {
@@ -52,20 +52,20 @@ std::string uiFormatBytes(u64 bytes) {
 }
 
 bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<bool(std::vector<SelectableElement> &currElements, bool &elementsDirty, bool &resetCursorIfDirty)> onLoop, std::function<void(SelectableElement* select)> onUpdateCursor, std::function<void(std::set<SelectableElement*>* marked)> onUpdateMarked, bool useTopScreen, bool alphabetize) {
-    int cursor = 0;
-    int scroll = 0;
+	int cursor = 0;
+	int scroll = 0;
 
-    u32 selectionScroll = 0;
-    u64 selectionScrollEndTime = 0;
+	u32 selectionScroll = 0;
+	u64 selectionScrollEndTime = 0;
 
-    u64 lastScrollTime = 0;
+	u64 lastScrollTime = 0;
 
-    bool elementsDirty = false;
-    bool resetCursorIfDirty = true;
+	bool elementsDirty = false;
+	bool resetCursorIfDirty = true;
 	
-    if(alphabetize) {
-        std::sort(elements.begin(), elements.end(), uiAlphabetize());
-    }
+	if(alphabetize) {
+		std::sort(elements.begin(), elements.end(), uiAlphabetize());
+	}
 	
 	SelectableElement* selected = &elements.at((u32) cursor);
 	std::set<SelectableElement*> markedElements;
@@ -73,8 +73,8 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 	if(onUpdateCursor != NULL) onUpdateCursor(selected);
 	if(onUpdateMarked != NULL) onUpdateMarked(&markedElements);
 
-    while(platformIsRunning()) {
-        inputPoll();
+	while(platformIsRunning()) {
+		inputPoll();
 		
 		if(inputIsPressed(BUTTON_L)) {
 			std::pair <std::set<SelectableElement*>::iterator,bool> inserted = markedElements.insert(selected);
@@ -84,9 +84,9 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 			if(onUpdateMarked != NULL) onUpdateMarked(&markedElements);
 		}
 
-        if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP) || inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
+		if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP) || inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
 			int lastCursor = cursor;
-            if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= 180) {
+			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= 180) {
 				if(inputIsHeld(BUTTON_DOWN) && cursor < (int) elements.size() - 1) {
 					cursor++;
 					if(cursor >= scroll + 20) {
@@ -149,115 +149,115 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 					if(onUpdateMarked != NULL) onUpdateMarked(&markedElements);
 				}
 
-                selectionScroll = 0;
-                selectionScrollEndTime = 0;
+				selectionScroll = 0;
+				selectionScrollEndTime = 0;
 
-                lastScrollTime = platformGetTime();
-            }
-        } else if(lastScrollTime > 0) {
+				lastScrollTime = platformGetTime();
+			}
+		} else if(lastScrollTime > 0) {
 			lastScrollTime = 0;
-        }
+		}
 
-        gpuViewport(BOTTOM_SCREEN, 0, 0, 320, 240);
-        gpuClear();
+		gpuViewport(BOTTOM_SCREEN, 0, 0, 320, 240);
+		gpuClear();
 
-        u32 screenWidth = (u32) gpuGetViewportWidth();
-        int screenHeight = gpuGetViewportHeight();
-        for(std::vector<SelectableElement>::iterator it = elements.begin() + scroll; it != elements.begin() + scroll + 20 && it != elements.end(); it++) {
+		u32 screenWidth = (u32) gpuGetViewportWidth();
+		int screenHeight = gpuGetViewportHeight();
+		for(std::vector<SelectableElement>::iterator it = elements.begin() + scroll; it != elements.begin() + scroll + 20 && it != elements.end(); it++) {
 			std::string name = (*it).name;
 			if (markedElements.find(&(*it)) != markedElements.end()) name.insert(0, 1, 0x10);
-            int index = it - elements.begin();
+			int index = it - elements.begin();
 			u8 cr = 0xFF;
 			u8 cg = 0xFF;
 			u8 cb = 0xFF;
-            int offset = 0;			
-            if(index == cursor) {
+			int offset = 0;			
+			if(index == cursor) {
 				cr = cg = cb = 0x00;
-                gputDrawRectangle(0, (screenHeight - 1) - ((index - scroll + 1) * 12), screenWidth, (u32) (gputGetStringHeight(name) + 4));
-                u32 width = (u32) gputGetStringWidth(name);
-                if(width > screenWidth) {
-                    if(selectionScroll + screenWidth >= width) {
-                        if(selectionScrollEndTime == 0) {
-                            selectionScrollEndTime = platformGetTime();
-                        } else if(platformGetTime() - selectionScrollEndTime >= 4000) {
-                            selectionScroll = 0;
-                            selectionScrollEndTime = 0;
-                        }
-                    } else {
-                        selectionScroll++;
-                    }
-                }
-                offset = -selectionScroll;
-            }
+				gputDrawRectangle(0, (screenHeight - 1) - ((index - scroll + 1) * 12), screenWidth, (u32) (gputGetStringHeight(name) + 4));
+				u32 width = (u32) gputGetStringWidth(name);
+				if(width > screenWidth) {
+					if(selectionScroll + screenWidth >= width) {
+						if(selectionScrollEndTime == 0) {
+							selectionScrollEndTime = platformGetTime();
+						} else if(platformGetTime() - selectionScrollEndTime >= 4000) {
+							selectionScroll = 0;
+							selectionScrollEndTime = 0;
+						}
+					} else {
+						selectionScroll++;
+					}
+				}
+				offset = -selectionScroll;
+			}
 			gputDrawString(name, offset, (screenHeight - 1) - ((index - scroll + 1) * 12) + 2, 1, cr, cg, cb);
-        }
+		}
 
-        gpuFlush();
-        gpuFlushBuffer();
-        
-        if(useTopScreen) {
+		gpuFlush();
+		gpuFlushBuffer();
+		
+		if(useTopScreen) {
 			gpuViewport(TOP_SCREEN, 0, 0, 400, 240);
-            gpuClear();
+			gpuClear();
 
-            if((*selected).details.size() != 0) {
-                std::stringstream details;
-                for(std::vector<std::string>::iterator it = (*selected).details.begin(); it != (*selected).details.end(); it++) {
-                    details << *it << "\n";
-                }
+			if((*selected).details.size() != 0) {
+				std::stringstream details;
+				for(std::vector<std::string>::iterator it = (*selected).details.begin(); it != (*selected).details.end(); it++) {
+					details << *it << "\n";
+				}
 
-                gputDrawString(details.str(), 0, gpuGetViewportHeight() - 1 - gputGetStringHeight(details.str()));
-            }
-        }
+				gputDrawString(details.str(), 0, gpuGetViewportHeight() - 1 - gputGetStringHeight(details.str()));
+			}
+		}
 
-        bool result = onLoop != NULL && onLoop(elements, elementsDirty, resetCursorIfDirty);
-        if(elementsDirty) {
-            if(resetCursorIfDirty) {
-                cursor = 0;
-                scroll = 0;
-            } else if(cursor >= (int) elements.size()) {
-                cursor = elements.size() - 1;
-                if(cursor < 0) {
-                    cursor = 0;
-                }
+		bool result = onLoop != NULL && onLoop(elements, elementsDirty, resetCursorIfDirty);
+		if(elementsDirty) {
+			if(resetCursorIfDirty) {
+				cursor = 0;
+				scroll = 0;
+			} else if(cursor >= (int) elements.size()) {
+				cursor = elements.size() - 1;
+				if(cursor < 0) {
+					cursor = 0;
+				}
 
-                scroll = elements.size() - 20;
-                if(scroll < 0) {
-                    scroll = 0;
-                }
-            }
+				scroll = elements.size() - 20;
+				if(scroll < 0) {
+					scroll = 0;
+				}
+			}
 
-            selectionScroll = 0;
-            selectionScrollEndTime = 0;
-            if(alphabetize) {
-                std::sort(elements.begin(), elements.end(), uiAlphabetize());
-            }
-            elementsDirty = false;
-            resetCursorIfDirty = true;
+			selectionScroll = 0;
+			selectionScrollEndTime = 0;
+			if(alphabetize) {
+				std::sort(elements.begin(), elements.end(), uiAlphabetize());
+			}
+			elementsDirty = false;
+			resetCursorIfDirty = true;
 			
 			if (onUpdateCursor != NULL) onUpdateCursor((selected = &elements.at((u32) cursor)));
 			markedElements.clear();
-        }
+		}
 
-        if(useTopScreen) {
-            gpuFlush();
-            gpuFlushBuffer();
-        }
+		if(useTopScreen) {
+			gpuFlush();
+			gpuFlushBuffer();
+		}
 
-        gpuSwapBuffers(true);
-        if(result) {
-            break;
-        }
-    }
+		gpuSwapBuffers(true);
+		if(result) {
+			break;
+		}
+	}
 
-    return false;
+	return false;
 }
 
 void uiGetDirContentsSorted(std::vector<SelectableElement> &elements, const std::string directory) {
 	elements.clear();
-    std::vector<FileInfoEx> contents = fsGetDirectoryContentsEx(directory);
+	std::vector<FileInfoEx> contents = fsGetDirectoryContentsEx(directory);
 	for(std::vector<FileInfoEx>::iterator it = contents.begin(); it != contents.end(); it++) {
-        const std::string name = (*it).name;
-        const std::string path = (*it).path;
+		const std::string name = (*it).name;
+		const std::string path = (*it).path;
 		std::vector<std::string> info = {};
 		if((*it).isDirectory) {
 			info.push_back("folder");
@@ -267,23 +267,23 @@ void uiGetDirContentsSorted(std::vector<SelectableElement> &elements, const std:
 			info.push_back(uiFormatBytes((u64) fsGetFileSize(path)));
 		}
 		elements.push_back({path, name, info});
-    }
+	}
 }
 
 bool uiFileBrowser(const std::string rootDirectory, std::function<bool(bool &updateList, bool &resetCursorOnUpdate)> onLoop, std::function<void(SelectableElement* entry)> onUpdateEntry, std::function<void(std::string* currDir)> onUpdateDir, std::function<void(std::set<SelectableElement*>* marked)> onUpdateMarked, bool useTopScreen) {
-    std::stack<std::string> directoryStack;
-    std::string currDirectory = rootDirectory;
+	std::stack<std::string> directoryStack;
+	std::string currDirectory = rootDirectory;
 
-    std::vector<SelectableElement> elements;
-    uiGetDirContentsSorted(elements, currDirectory);
+	std::vector<SelectableElement> elements;
+	uiGetDirContentsSorted(elements, currDirectory);
 	if (onUpdateDir) onUpdateDir(&currDirectory);
 
 	SelectableElement* unmarkable = NULL;
 	
-    bool updateContents = false;
-    bool resetCursor = true;
-    SelectableElement* selected;
-    bool result = uiSelectMultiple(elements,
+	bool updateContents = false;
+	bool resetCursor = true;
+	SelectableElement* selected;
+	bool result = uiSelectMultiple(elements,
 		[&](std::vector<SelectableElement> &currElements, bool &elementsDirty, bool &resetCursorIfDirty) {
 			if(onLoop != NULL && onLoop(updateContents, resetCursor)) {
 				return true;
@@ -337,47 +337,47 @@ bool uiFileBrowser(const std::string rootDirectory, std::function<bool(bool &upd
 	useTopScreen, false);
 
 
-    return result;
+	return result;
 }
 
 bool uiErrorPrompt(Screen screen, const std::string operationStr, const std::string detailStr, bool checkErrno, bool question) {
-    std::stringstream stream;
+	std::stringstream stream;
 	stream << operationStr << " failed!" << "\n";
 	stream << uiTruncateString(detailStr, 32, 0 ) << "\n";
 	if(checkErrno) stream << strerror(errno) << "\n";
 	stream << "\n";
-    if(question) {
-        stream << "Press A to continue, B to cancel." << "\n";
-    } else {
-        stream << "Press Start to continue." << "\n";
-    }
+	if(question) {
+		stream << "Press A to continue, B to cancel." << "\n";
+	} else {
+		stream << "Press Start to continue." << "\n";
+	}
 
-    bool result = false;
-    std::string str = stream.str();
-    while(platformIsRunning()) {
-        inputPoll();
-        if(question) {
-            if(inputIsPressed(BUTTON_A)) {
-                result = true;
-                break;
-            }
+	bool result = false;
+	std::string str = stream.str();
+	while(platformIsRunning()) {
+		inputPoll();
+		if(question) {
+			if(inputIsPressed(BUTTON_A)) {
+				result = true;
+				break;
+			}
 
-            if(inputIsPressed(BUTTON_B)) {
-                result = false;
-                break;
-            }
-        } else {
-            if(inputIsPressed(BUTTON_START)) {
-                result = true;
-                break;
-            }
-        }
+			if(inputIsPressed(BUTTON_B)) {
+				result = false;
+				break;
+			}
+		} else {
+			if(inputIsPressed(BUTTON_START)) {
+				result = true;
+				break;
+			}
+		}
 
-        uiDisplayMessage(screen, str);
-    }
+		uiDisplayMessage(screen, str);
+	}
 
-    inputPoll();
-    return result;
+	inputPoll();
+	return result;
 }
 
 std::string uiStringInput(Screen screen, std::string preset, const std::string alphabet, const std::string message) {
@@ -387,11 +387,11 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 	int cursor_s = 0;
 	int cursor_a = -1;
 	int scroll = 0;	
-    u64 lastScrollTime = 0;
+	u64 lastScrollTime = 0;
 	
 	std::string resultStr = (preset.empty()) ? alphabet.substr(0,1) : preset;
-    bool result = false;
-    
+	bool result = false;
+	
 	while(platformIsRunning()) {
 		std::stringstream stream;
 		stream << message << "\n";
@@ -409,8 +409,8 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 			stream << "Y - insert character" << "\n" << "\n";
 		}
 		stream << "Press A to confirm, B to cancel." << "\n";
-    
-        inputPoll();
+	
+		inputPoll();
 		
 		if(inputIsPressed(BUTTON_A)) {
 			result = true;
@@ -466,7 +466,7 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 				}
 				
 				resultStr.replace(cursor_s, 1, alphabet.substr(cursor_a, 1));
-                lastScrollTime = platformGetTime();
+				lastScrollTime = platformGetTime();
 			}
 		} else if(inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
 			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= 120) {
@@ -487,14 +487,14 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 					} else cursor_a = -1;
 				}
 				
-                lastScrollTime = platformGetTime();
+				lastScrollTime = platformGetTime();
 			}
 		} else if (lastScrollTime > 0) {
 			lastScrollTime = 0;
-        }
+		}
 
-        uiDisplayMessage(screen, stream.str());
-    }
+		uiDisplayMessage(screen, stream.str());
+	}
 	
 	if(result) {
 		cursor_s = resultStr.find_last_not_of(" ");
@@ -502,7 +502,7 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 		else resultStr.erase(cursor_s + 1);
 	} else resultStr.clear();
 	
-    inputPoll();
+	inputPoll();
 	
-    return resultStr;
+	return resultStr;
 }

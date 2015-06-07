@@ -16,28 +16,28 @@
 #include <iomanip>
 
 typedef enum {
-    M_DEL_COPY,
-    M_REN_MOVE,
+	M_DEL_COPY,
+	M_REN_MOVE,
 	M_CREATE,
 	M_HEXVIEW
 } Mode;
 
 int main(int argc, char **argv) {
-    if(!platformInit()) {
-        return 0;
-    }
+	if(!platformInit()) {
+		return 0;
+	}
 
-    bool ninjhax = platformIsNinjhax();
+	bool ninjhax = platformIsNinjhax();
 	bool exit = false;
-    
-    Mode mode = M_DEL_COPY;
+	
+	Mode mode = M_DEL_COPY;
 	u64 lastSwitchTime = 0;
 	
 	std::string currentDir = "";
 	SelectableElement currentFile = { "", "" };
 	std::set<SelectableElement*>* markedElements = NULL;
 	std::vector<SelectableElement> clipboard;
-    u64 freeSpace = fsGetFreeSpace(SD);
+	u64 freeSpace = fsGetFreeSpace(SD);
 	
 	u32 dummySize = 0;
 	int dummyContent = 0x00;
@@ -49,8 +49,8 @@ int main(int argc, char **argv) {
 		const std::string title = "CTRX SD Explorer v0.7.3";
 		std::string str;
 		
-		u32 screenWidth  = gpuGetViewportWidth();
-        u32 screenHeight = gpuGetViewportHeight();
+		u32 screenWidth = gpuGetViewportWidth();
+		u32 screenHeight = gpuGetViewportHeight();
 		
 		u32 vpos0 = screenHeight - 1 - 12 - 4;
 		u32 vpos1 = vpos0 - 11;
@@ -111,11 +111,11 @@ int main(int argc, char **argv) {
 		if(mode == M_DEL_COPY) {
 			stream << "X - DELETE " << object.str() << "\n";
 			if(clipboard.size() > 0) stream << "Y - PASTE/COPY" << ((clipboard.size() > 1) ? " files" : " file") << " from clipboard" << "\n";
-			else stream << "Y - COPY " << object.str() <<  "\n";
+			else stream << "Y - COPY " << object.str() << "\n";
 		} else if(mode == M_REN_MOVE) {
 			stream << "X - RENAME selected file" << "\n";
 			if(clipboard.size() > 0) stream << "Y - PASTE/MOVE" << ((clipboard.size() > 1) ? " files" : " file") << " from clipboard" << "\n";
-			else stream << "Y - MOVE " << object.str() <<  "\n";
+			else stream << "Y - MOVE " << object.str() << "\n";
 		} else if(mode == M_CREATE) {
 			stream << "X - CREATE new subdirectory" << "\n";
 			stream << "Y - GENERATE " << ((dummySize == 0) ? "zero byte" : uiFormatBytes(dummySize)) << " dummy file";
@@ -135,20 +135,20 @@ int main(int argc, char **argv) {
 		gputDrawString(str, (screenWidth - 320) / 2, 4);
 		
 		gpuFlush();
-        gpuFlushBuffer();
+		gpuFlushBuffer();
 		
-        return;
-    };
+		return;
+	};
 	
 	auto onLoop = [&](bool &updateList, bool &resetCursor) {
 		const std::string alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]'`^,~!@#$%&0123456789=+-_.";
-        bool breakLoop = false;
+		bool breakLoop = false;
 		
 		// START - EXIT TO HB LAUNCHER
 		if(inputIsPressed(BUTTON_START) && ninjhax) {
-            exit = true;
-            return true;
-        }
+			exit = true;
+			return true;
+		}
 		
 		// SELECT - CLEAR CLIPBOARD
 		if(inputIsPressed(BUTTON_SELECT)) {
@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 		}
 		
 		// R - SWITCH BETWEEN MODES
-        if(inputIsHeld(BUTTON_R)) {
+		if(inputIsHeld(BUTTON_R)) {
 			if(lastSwitchTime == 0) lastSwitchTime = platformGetTime();
 			else if(platformGetTime() - lastSwitchTime >= 240) {
 				u64 lastChangeTime = 0;
@@ -347,11 +347,11 @@ int main(int argc, char **argv) {
 			},
 			false );
 		
-        if(exit) {
+		if(exit) {
 			break;
 		}
-    }
+	}
 
-    platformCleanup();
-    return 0;
+	platformCleanup();
+	return 0;
 }

@@ -42,18 +42,18 @@ bool fsShowProgress(const std::string operationStr, const std::string pathStr, u
 	
 u32 fsGetFileSize(const std::string path) {
 	struct stat st;
-    stat(path.c_str(), &st);
+	stat(path.c_str(), &st);
 	return (u32) st.st_size;
 }
 
 std::string fsGetName(const std::string path) {
 	std::string::size_type slashPos = path.rfind('/');
-    return (slashPos != std::string::npos) ? path.substr(slashPos + 1) : path;
+	return (slashPos != std::string::npos) ? path.substr(slashPos + 1) : path;
 }
 
 std::string fsGetExtension(const std::string path) {
 	std::string::size_type dotPos = path.rfind('.');
-    return (dotPos != std::string::npos) ? path.substr(dotPos + 1) : "";
+	return (dotPos != std::string::npos) ? path.substr(dotPos + 1) : "";
 }
 
 bool fsPathDelete(const std::string path) {
@@ -158,28 +158,28 @@ bool fsCreateDummyFile(const std::string path, u64 size, u16 content, bool showP
 
 std::vector<FileInfoEx> fsGetDirectoryContentsEx(const std::string directory) {
 	std::vector<FileInfoEx> result;
-    bool hasSlash = directory.size() != 0 && directory[directory.size() - 1] == '/';
-    const std::string dirWithSlash = hasSlash ? directory : directory + "/";
+	bool hasSlash = directory.size() != 0 && directory[directory.size() - 1] == '/';
+	const std::string dirWithSlash = hasSlash ? directory : directory + "/";
 
-    DIR* dir = opendir(dirWithSlash.c_str());
-    if(dir == NULL) {
-        return result;
-    }
+	DIR* dir = opendir(dirWithSlash.c_str());
+	if(dir == NULL) {
+		return result;
+	}
 
-    while(true) {
-        struct dirent* ent = readdir(dir);
-        if(ent == NULL) {
-            break;
-        }
+	while(true) {
+		struct dirent* ent = readdir(dir);
+		if(ent == NULL) {
+			break;
+		}
 		const std::string name = std::string(ent->d_name);
 		if((name.compare(".") != 0) && (name.compare("..") != 0)) {
 			const std::string path = dirWithSlash + std::string(ent->d_name);
 			bool isDirectory = fsIsDirectory(path);
 			result.push_back({path, std::string(ent->d_name), isDirectory});
 		}
-    }
+	}
 
-    closedir(dir);
+	closedir(dir);
 	std::sort(result.begin(), result.end(), fsAlphabetizeFoldersFiles());
-    return result;
+	return result;
 }

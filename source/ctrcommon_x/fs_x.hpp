@@ -7,8 +7,8 @@
 #include <vector>
 
 typedef struct {
-    std::string path;
-    std::string name;
+	std::string path;
+	std::string name;
 	bool isDirectory;
 } FileInfoEx;
 
