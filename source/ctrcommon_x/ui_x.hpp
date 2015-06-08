@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+void uiDrawRectangleCrude(int x, int y, u32 width, u32 height, u8 red = 0xFF, u8 green = 0xFF, u8 blue = 0xFF, u8 alpha = 0xFF);
 std::string uiTruncateString(const std::string str, int nsize, int pos);
 std::string uiFormatBytes(u64 bytes);
 bool uiFileBrowser(const std::string rootDirectory, std::function<bool(bool &updateList, bool &resetCursorOnUpdate)> onLoop, std::function<void(SelectableElement* entry)> onUpdateEntry, std::function<void(std::string* currDir)> onUpdateDir, std::function<void(std::set<SelectableElement*>* marked)> onUpdateMarked, bool useTopScreen);

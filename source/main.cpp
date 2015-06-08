@@ -38,7 +38,8 @@ int main(int argc, char **argv) {
 	int dummyContent = 0x00;
 	
 	auto onLoopDisplay = [&]() {
-		gpuViewport(TOP_SCREEN, 0, 0, 400, 240);
+		gpuViewport(TOP_SCREEN, 0, 0, TOP_WIDTH, TOP_HEIGHT);
+		gputOrtho(0, TOP_WIDTH, 0, TOP_HEIGHT, -1, 1);		
 		gpuClear();
 		
 		const std::string title = "CTRX SD Explorer v0.7.3";
@@ -49,48 +50,47 @@ int main(int argc, char **argv) {
 		
 		u32 vpos0 = screenHeight - 1 - 12 - 4;
 		u32 vpos1 = vpos0 - 11;
-		u32 vdec = gputGetStringHeight("ABC") + 1;
 		u32 cbdisp = 10;
-		u8 grey = 0x9F;
+		u8 gr = 0x9F;
 		
 		// TOP BAR -> CURRENT DIRECTORY & FREE SPACE
+		uiDrawRectangleCrude(0, (screenHeight - 1) - 12, screenWidth, 12);
 		str = uiTruncateString(currentDir, 36, 0); // current directory
-		gputDrawRectangle(0, screenHeight - 1 - gputGetStringHeight(str) - 4, screenWidth, gputGetStringHeight(str) + 4);
-		gputDrawString(str, 0, screenHeight - 1 - gputGetStringHeight(str) - 2, 1.0, 0x00, 0x00, 0x00);
+		gputDrawString(str, 0, (screenHeight - 1) - 10, 8, 8, 0x00, 0x00, 0x00);
 		str = uiFormatBytes(freeSpace) + " free"; // free space
-		gputDrawString(str, screenWidth - gputGetStringWidth(str) - 1, screenHeight - 1 - gputGetStringHeight(str) - 2, 1.0, 0x00, 0x00, 0x00);
+		gputDrawString(str, (screenWidth - 1) - gputGetStringWidth(str, 8), (screenHeight - 1) - 10, 8, 8, 0x00, 0x00, 0x00);
 		
 		// CURRENT FILE DETAILS
 		if(currentFile.name.compare("..") != 0) {
 			str = "[SELECTED]";
-			gputDrawString(str, 0, vpos0 - gputGetStringHeight(str));
+			gputDrawString(str, 0, vpos0 - 8, 8, 8);
 			str = uiTruncateString(currentFile.name, 22, -8);
-			gputDrawString(str, 0, vpos1 - gputGetStringHeight(str));
-			u32 vpos = vpos1 - vdec;
-			for(std::vector<std::string>::iterator it = currentFile.details.begin(); it != currentFile.details.end(); it++, vpos -= vdec) {
-				gputDrawString(*it, 0, vpos - gputGetStringHeight(*it), 1.0, grey, grey, grey);
+			gputDrawString(str, 0, vpos1 - 8, 8, 8);
+			u32 vpos = vpos1 - 9;
+			for(std::vector<std::string>::iterator it = currentFile.details.begin(); it != currentFile.details.end(); it++, vpos -= 9) {
+				gputDrawString(*it, 0, vpos - 8, 8, 8, gr, gr, gr);
 			}
 		}
 		
 		// CLIPBOARD DETAILS
 		if(clipboard.size() > 0) {
 			std::stringstream stream;
-			stream << "[CLIPBOARD (" << clipboard.size() << ")]";
+			stream << "[CLIPBOARD(" << clipboard.size() << ")]";
 			str = stream.str();
-			gputDrawString(str, screenWidth - 1 - gputGetStringWidth(str), vpos0 - gputGetStringHeight(str));
+			gputDrawString(str, (screenWidth - 1) - gputGetStringWidth(str, 8), vpos0 - 8, 8, 8);
 			u32 vpos = vpos1;
-			for(u32 i = 0; (i < clipboard.size()) && (i < cbdisp); i++, vpos -= vdec) {
+			for(u32 i = 0; (i < clipboard.size()) && (i < cbdisp); i++, vpos -= 9) {
 				str = uiTruncateString(clipboard.at(i).name, 22, -8);
-				gputDrawString(str, screenWidth - 1 - gputGetStringWidth(str), vpos - gputGetStringHeight(str));
+				gputDrawString(str, (screenWidth - 1) - gputGetStringWidth(str, 8), vpos - 8, 8, 8);
 			}
 			if(clipboard.size() > cbdisp) {
 				stream.str("");
 				stream << "(+ " << clipboard.size() - cbdisp << " more files)";
 				str = stream.str();
-				gputDrawString(str, screenWidth - 1 - gputGetStringWidth(str), vpos - gputGetStringHeight(str), 1.0, grey, grey, grey);
+				gputDrawString(str, (screenWidth - 1) - gputGetStringWidth(str, 8), vpos - 8, 8, 8, gr, gr, gr);
 			} else if(clipboard.size() == 1) {
-				for(std::vector<std::string>::iterator it = clipboard.at(0).details.begin(); it != clipboard.at(0).details.end(); it++, vpos -= vdec) {
-					gputDrawString(*it, screenWidth - 1 - gputGetStringWidth(*it), vpos - gputGetStringHeight(*it), 1.0, grey, grey, grey);
+				for(std::vector<std::string>::iterator it = clipboard.at(0).details.begin(); it != clipboard.at(0).details.end(); it++, vpos -= 9) {
+					gputDrawString(*it, (screenWidth - 1) - gputGetStringWidth(*it, 8), vpos - 8, 8, 8, gr, gr, gr);
 				}
 			}
 		}
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
 			stream << "START - Exit to launcher" << "\n";
 		}
 		str = stream.str();
-		gputDrawString(str, (screenWidth - 320) / 2, 4);
+		gputDrawString(str, (screenWidth - 320) / 2, 4, 8, 8);
 		
 		gpuFlush();
 		gpuFlushBuffer();

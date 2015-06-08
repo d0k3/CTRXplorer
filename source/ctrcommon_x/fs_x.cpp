@@ -47,11 +47,6 @@ std::string fsGetName(const std::string path) {
 	return (slashPos != std::string::npos) ? path.substr(slashPos + 1) : path;
 }
 
-std::string fsGetExtension(const std::string path) {
-	std::string::size_type dotPos = path.rfind('.');
-	return (dotPos != std::string::npos) ? path.substr(dotPos + 1) : "";
-}
-
 bool fsPathDelete(const std::string path) {
 	if(fsIsDirectory(path)) {
 		std::vector<FileInfo> contents = fsGetDirectoryContents(path);

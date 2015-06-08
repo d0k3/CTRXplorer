@@ -21,6 +21,13 @@ struct uiAlphabetize {
 	}
 };
 
+void uiDrawRectangleCrude(int x, int y, u32 width, u32 height, u8 red, u8 green, u8 blue, u8 alpha) {
+	// very crude, and works only with rectangles >= 8 in height
+	gputDrawString(std::string(1, 0xDB), x, y, width, 8, red, green, blue, alpha);
+	if(height > 8) for(u32 v = height % 8; v < height; v += 8)
+		gputDrawString(std::string(1, 0xDB), x, y + v, width, 8, red, green, blue, alpha);
+}
+
 std::string uiTruncateString(const std::string str, int nsize, int pos) {
 	int osize = str.size();
 	if (pos < 0) pos = nsize + 1 + pos - 3;
@@ -157,7 +164,8 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 			lastScrollTime = 0;
 		}
 
-		gpuViewport(BOTTOM_SCREEN, 0, 0, 320, 240);
+		gpuViewport(BOTTOM_SCREEN, 0, 0, BOTTOM_WIDTH, BOTTOM_HEIGHT);
+		gputOrtho(0, BOTTOM_WIDTH, 0, BOTTOM_HEIGHT, -1, 1);
 		gpuClear();
 
 		u32 screenWidth = (u32) gpuGetViewportWidth();
@@ -166,14 +174,13 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 			std::string name = (*it).name;
 			if (markedElements.find(&(*it)) != markedElements.end()) name.insert(0, 1, 0x10);
 			int index = it - elements.begin();
-			u8 cr = 0xFF;
-			u8 cg = 0xFF;
-			u8 cb = 0xFF;
-			int offset = 0;			
+			u8 cl = 0xFF;
+			int offset = 0;
+			float itemHeight = gputGetStringHeight(name, 8) + 4;
 			if(index == cursor) {
-				cr = cg = cb = 0x00;
-				gputDrawRectangle(0, (screenHeight - 1) - ((index - scroll + 1) * 12), screenWidth, (u32) (gputGetStringHeight(name) + 4));
-				u32 width = (u32) gputGetStringWidth(name);
+				cl = 0x00;
+				uiDrawRectangleCrude(0, (screenHeight - 1) - ((index - scroll + 1) * itemHeight), screenWidth, itemHeight);
+				u32 width = (u32) gputGetStringWidth(name, 8);
 				if(width > screenWidth) {
 					if(selectionScroll + screenWidth >= width) {
 						if(selectionScrollEndTime == 0) {
@@ -188,14 +195,15 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 				}
 				offset = -selectionScroll;
 			}
-			gputDrawString(name, offset, (screenHeight - 1) - ((index - scroll + 1) * 12) + 2, 1, cr, cg, cb);
+			gputDrawString(name, offset, (screenHeight - 1) - ((index - scroll + 1) * itemHeight) + 2, 8, 8, cl, cl, cl);
 		}
 
 		gpuFlush();
 		gpuFlushBuffer();
 		
 		if(useTopScreen) {
-			gpuViewport(TOP_SCREEN, 0, 0, 400, 240);
+			gpuViewport(TOP_SCREEN, 0, 0, TOP_WIDTH, TOP_HEIGHT);
+			gputOrtho(0, TOP_WIDTH, 0, TOP_HEIGHT, -1, 1);
 			gpuClear();
 
 			if((*selected).details.size() != 0) {
@@ -204,7 +212,7 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 					details << *it << "\n";
 				}
 
-				gputDrawString(details.str(), 0, gpuGetViewportHeight() - 1 - gputGetStringHeight(details.str()));
+				gputDrawString(details.str(), 0, gpuGetViewportHeight() - 1 - gputGetStringHeight(details.str(), 8), 8, 8);
 			}
 		}
 

@@ -14,7 +14,6 @@ typedef struct {
 
 u32 fsGetFileSize(const std::string path);
 std::string fsGetName(const std::string path);
-std::string fsGetExtension(const std::string path);
 bool fsPathDelete(const std::string path);
 bool fsPathCopy(const std::string path, const std::string dest, bool showProgress = false);
 bool fsPathRename(const std::string path, const std::string dest);
