@@ -1,17 +1,12 @@
 #include "ctrcommon_x/fs_x.hpp"
 #include "ctrcommon_x/ui_x.hpp"
 
-#include <ctrcommon/app.hpp>
 #include <ctrcommon/gpu.hpp>
 #include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>
 #include <ctrcommon/ui.hpp>
 
-#include <sys/dirent.h>
-#include <sys/errno.h>
-#include <stdio.h>
-#include <string.h>
-
+#include <string>
 #include <sstream>
 #include <iomanip>
 

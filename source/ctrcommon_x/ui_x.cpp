@@ -6,13 +6,10 @@
 #include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>
 
-#include <sys/dirent.h>
 #include <sys/errno.h>
-#include <sys/unistd.h>
 #include <string.h>
 
 #include <algorithm>
-#include <iomanip>
 #include <sstream>
 #include <stack>
 

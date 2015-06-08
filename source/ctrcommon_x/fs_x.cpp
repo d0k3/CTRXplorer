@@ -12,11 +12,7 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <vector>
 #include <algorithm>
-// #include <sstream>
-
-// #include <3ds.h>
 
 #define CTRX_BUFSIZ (128 * 1024)
 
