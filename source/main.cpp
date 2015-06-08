@@ -255,7 +255,7 @@ int main(int argc, char **argv) {
 						if(fail) {
 							failCount++;
 							std::string operationStr = (mode == M_DEL_COPY) ? "Copying" : "Moving";
-							if (!uiErrorPrompt(TOP_SCREEN, operationStr, (*it).name, true, true)) break;
+							if (!uiErrorPrompt(TOP_SCREEN, operationStr, (*it).name, true, it + 1 != clipboard.end())) break;
 						}
 					}
 					if((failCount > 0) && (clipboard.size() > 1)) {
@@ -297,8 +297,10 @@ int main(int argc, char **argv) {
 					if(uiPrompt(TOP_SCREEN, confirmMsg, true)) {						
 						for(std::set<SelectableElement*>::iterator it = (*markedElements).begin(); it != (*markedElements).end(); it++) {
 							if(!fsPathDelete((**it).id)) {
+								std::set<SelectableElement*>::iterator next = it;
+								next++;
 								failCount++;
-								if (!uiErrorPrompt(TOP_SCREEN, "Deleting", (**it).name, true, true)) break;
+								if (!uiErrorPrompt(TOP_SCREEN, "Deleting", (**it).name, true, next != (*markedElements).end())) break;
 							}
 						}
 						if((failCount > 0) && ((*markedElements).size() > 1)) {
@@ -332,7 +334,7 @@ int main(int argc, char **argv) {
 	};
 	
 	while(platformIsRunning()) {
-		uiFileBrowser( "/",
+		exit = !uiFileBrowser( "/",
 			[&](bool &updateList, bool &resetCursor) { // onLoop function
 				return onLoop(updateList, resetCursor);
 			},

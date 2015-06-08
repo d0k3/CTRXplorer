@@ -52,6 +52,8 @@ std::string uiFormatBytes(u64 bytes) {
 }
 
 bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<bool(std::vector<SelectableElement> &currElements, bool &elementsDirty, bool &resetCursorIfDirty)> onLoop, std::function<void(SelectableElement* select)> onUpdateCursor, std::function<void(std::set<SelectableElement*>* marked)> onUpdateMarked, bool useTopScreen, bool alphabetize) {
+	if(elements.empty()) return false;
+	
 	int cursor = 0;
 	int scroll = 0;
 
@@ -343,7 +345,7 @@ bool uiFileBrowser(const std::string rootDirectory, std::function<bool(bool &upd
 bool uiErrorPrompt(Screen screen, const std::string operationStr, const std::string detailStr, bool checkErrno, bool question) {
 	std::stringstream stream;
 	stream << operationStr << " failed!" << "\n";
-	stream << uiTruncateString(detailStr, 32, 0 ) << "\n";
+	stream << "\"" << uiTruncateString(detailStr, 32, 0 ) << "\"" << "\n";
 	if(checkErrno) stream << strerror(errno) << "\n";
 	stream << "\n";
 	if(question) {

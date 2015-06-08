@@ -72,7 +72,7 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
 	}
 	if(fsIsDirectory(path)) {
 		if(dest.find(path + "/") != std::string::npos) {
-			errno = EINVAL;
+			errno = ENOTSUP;
 			return false;
 		}
 		if(mkdir(dest.c_str(), 0777) != 0) return false;
@@ -108,7 +108,7 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
 
 bool fsPathRename(const std::string path, const std::string dest) {
 	if(dest.find(path + "/") != std::string::npos) {
-		errno = EINVAL;
+		errno = ENOTSUP;
 		return false;
 	}
 	if(fsExists(dest)) {
