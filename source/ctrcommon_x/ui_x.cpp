@@ -92,7 +92,7 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 			std::pair <std::set<SelectableElement*>::iterator,bool> inserted = markedElements.insert(selected);
 			if(!inserted.second) markedElements.erase(inserted.first);
 			selectionScroll = 0;
-			selectionScrollEndTime = platformGetTime();
+			selectionScrollEndTime = platformGetTime() - 3000;
 			if(onUpdateMarked != NULL) onUpdateMarked(&markedElements);
 		}
 
@@ -188,15 +188,15 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 				uiDrawRectangleCrude(0, (screenHeight - 1) - ((index - scroll + 1) * itemHeight), screenWidth, itemHeight);
 				u32 width = (u32) gputGetStringWidth(name, 8);
 				if(width > screenWidth) {
-					if(selectionScroll + screenWidth >= width) {
-						if(selectionScrollEndTime == 0) {
+					if(selectionScrollEndTime == 0) {
+						if(selectionScroll + screenWidth >= width) {
 							selectionScrollEndTime = platformGetTime();
-						} else if(platformGetTime() - selectionScrollEndTime >= 4000) {
-							selectionScroll = 0;
-							selectionScrollEndTime = 0;
+						} else {
+							selectionScroll++;
 						}
-					} else {
-						selectionScroll++;
+					} else if(platformGetTime() - selectionScrollEndTime >= 4000) {
+						selectionScroll = 0;
+						selectionScrollEndTime = 0;
 					}
 				}
 				offset = -selectionScroll;
