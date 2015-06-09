@@ -14,7 +14,7 @@
 #include <cstdlib>
 #include <algorithm>
 
-#define CTRX_BUFSIZ (128 * 1024)
+#define CTRX_BUFSIZ (512 * 1024)
 
 struct fsAlphabetizeFoldersFiles {
 	inline bool operator()(FileInfoEx a, FileInfoEx b) {
@@ -74,14 +74,15 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
 	} else {
 		if(showProgress) fsShowProgress("Copying", path, 0, 1);
 		bool ret = false;
-		u8* buffer = (u8*) malloc( CTRX_BUFSIZ );
 		u64 total = fsGetFileSize(path);
-		u64 pos = 0;
-		size_t size;
+		size_t l_bufsiz = (total < CTRX_BUFSIZ) ? total : CTRX_BUFSIZ;
+		u8* buffer = (u8*) malloc( l_bufsiz );
 		FILE* fp = fopen(path.c_str(), "rb");
 		FILE* fd = fopen(dest.c_str(), "wb");
 		if ((fp != NULL) && (fd != NULL) && (buffer != NULL)) {
-			while ((size = fread(buffer, 1, CTRX_BUFSIZ, fp)) > 0) {
+			u64 pos = 0;
+			size_t size;
+			while ((size = fread(buffer, 1, l_bufsiz, fp)) > 0) {
 				pos += fwrite(buffer, 1, size, fd);
 				if(showProgress && !fsShowProgress("Copying", path, pos, total)) {
 					errno = ECANCELED;
@@ -125,16 +126,20 @@ bool fsCreateDummyFile(const std::string path, u64 size, u16 content, bool showP
 	if(size < CTRX_BUFSIZ) showProgress = false;
 	if(showProgress) fsShowProgress("Generating", path, 0, 1);
 	bool ret = false;
-	u8* buffer = (u8*) malloc( CTRX_BUFSIZ );
+	size_t l_bufsiz = (size < CTRX_BUFSIZ) ? size : CTRX_BUFSIZ;
+	u8* buffer = (u8*) malloc( l_bufsiz );
 	FILE* fp = fopen(path.c_str(), "wb");
 	if((fp != NULL) && (buffer != NULL)) {
-		u8 byte = content & 0xFF;
-		u8 inc = (content >> 8) & 0xFF;
-		for(u64 count = 0; count < CTRX_BUFSIZ; count++, byte += inc)
-			buffer[count] = byte;
+		if(content & 0xFF00) {
+			u8 byte = content & 0xFF;
+			u8 inc = (content >> 8) & 0xFF;
+			for(u64 count = 0; count < l_bufsiz; count++, byte += inc)
+				buffer[count] = byte;
+		} else memset(buffer, content, l_bufsiz);
 		u64 pos = 0;
-		for(u64 count = 0; count < size; count += CTRX_BUFSIZ) {
-			pos += fwrite(buffer, 1, (size - count < CTRX_BUFSIZ) ? size - count : CTRX_BUFSIZ, fp);
+		for(u64 count = 0; count < size; count += l_bufsiz) {
+			if(size - count < l_bufsiz) l_bufsiz = size - count;
+			pos += fwrite(buffer, 1, l_bufsiz, fp);
 			if(showProgress && !fsShowProgress("Generating", path, pos, size)) {
 				errno = ECANCELED;
 				break;
