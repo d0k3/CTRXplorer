@@ -86,7 +86,7 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 			std::pair <std::set<SelectableElement*>::iterator,bool> inserted = markedElements.insert(selected);
 			if(!inserted.second) markedElements.erase(inserted.first);
 			selectionScroll = 0;
-			selectionScrollEndTime = 0;
+			selectionScrollEndTime = platformGetTime();
 			if(onUpdateMarked != NULL) onUpdateMarked(&markedElements);
 		}
 
