@@ -55,7 +55,7 @@ std::string uiFormatBytes(u64 bytes) {
 	return byteStr.str();
 }
 
-bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<bool(std::vector<SelectableElement> &currElements, bool &elementsDirty, bool &resetCursorIfDirty)> onLoop, std::function<void(SelectableElement* select)> onUpdateCursor, std::function<void(std::set<SelectableElement*>* marked)> onUpdateMarked, bool useTopScreen, bool alphabetize) {
+bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<bool(std::vector<SelectableElement> &currElements, bool &elementsDirty, bool &resetCursorIfDirty)> onLoop, std::function<void(SelectableElement* select)> onUpdateCursor, std::function<void(std::set<SelectableElement*>* marked)> onUpdateMarked, std::function<bool(SelectableElement* selected)> onSelect, bool useTopScreen, bool alphabetize) {
 	if(elements.empty()) return false;
 	
 	int cursor = 0;
@@ -81,6 +81,12 @@ bool uiSelectMultiple(std::vector<SelectableElement> elements, std::function<boo
 
 	while(platformIsRunning()) {
 		inputPoll();
+		
+		if(inputIsPressed(BUTTON_A)) {
+            if(onSelect == NULL || onSelect(selected)) {
+                return true;
+            }
+        }
 		
 		if(inputIsPressed(BUTTON_L)) {
 			std::pair <std::set<SelectableElement*>::iterator,bool> inserted = markedElements.insert(selected);
@@ -277,7 +283,7 @@ void uiGetDirContentsSorted(std::vector<SelectableElement> &elements, const std:
 	}
 }
 
-bool uiFileBrowser(const std::string rootDirectory, std::function<bool(bool &updateList, bool &resetCursorOnUpdate)> onLoop, std::function<void(SelectableElement* entry)> onUpdateEntry, std::function<void(std::string* currDir)> onUpdateDir, std::function<void(std::set<SelectableElement*>* marked)> onUpdateMarked, bool useTopScreen) {
+bool uiFileBrowser(const std::string rootDirectory, std::function<bool(bool &updateList, bool &resetCursorOnUpdate)> onLoop, std::function<void(SelectableElement* entry)> onUpdateEntry, std::function<void(std::string* currDir)> onUpdateDir, std::function<void(std::set<SelectableElement*>* marked)> onUpdateMarked, std::function<bool(SelectableElement* selected, bool &updateList)> onSelect, bool useTopScreen) {
 	std::stack<std::string> directoryStack;
 	std::string currDirectory = rootDirectory;
 
@@ -294,20 +300,6 @@ bool uiFileBrowser(const std::string rootDirectory, std::function<bool(bool &upd
 		[&](std::vector<SelectableElement> &currElements, bool &elementsDirty, bool &resetCursorIfDirty) {
 			if(onLoop != NULL && onLoop(updateContents, resetCursor)) {
 				return true;
-			}
-			
-			if(inputIsPressed(BUTTON_A)) {
-				if((*selected).name.compare("..") == 0) {
-					if(!directoryStack.empty()) {
-						currDirectory = directoryStack.top();
-						directoryStack.pop();
-						updateContents = true;
-					}
-				} else if(fsIsDirectory((*selected).id)) {
-					directoryStack.push(currDirectory);
-					currDirectory = (*selected).id;
-					updateContents = true;
-				}
 			}
 			
 			if(inputIsPressed(BUTTON_B) && !directoryStack.empty()) {
@@ -340,9 +332,32 @@ bool uiFileBrowser(const std::string rootDirectory, std::function<bool(bool &upd
 				(*marked).erase(unmarkable);				
 			}
 			onUpdateMarked(marked);
-		},
-	useTopScreen, false);
+		}, 
+		[&](SelectableElement* selected) {
+			if((*selected).name.compare("..") == 0) {
+				if(!directoryStack.empty()) {
+					currDirectory = directoryStack.top();
+					directoryStack.pop();
+					updateContents = true;
+				}
+				return false;
+			} else if(fsIsDirectory((*selected).id)) {
+				directoryStack.push(currDirectory);
+				currDirectory = (*selected).id;
+				updateContents = true;
+				return false;
+			}
+			
+			bool updateList = false;
+			bool ret = (onSelect != NULL) && onSelect(selected, updateList);
+			if(updateList) {
+				updateContents = true;
+				resetCursor = false;
+			}
 
+			return ret;
+		},
+		useTopScreen, false);
 
 	return result;
 }

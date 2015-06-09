@@ -342,7 +342,7 @@ int main(int argc, char **argv) {
 			[&](std::set<SelectableElement*>* marked) { // onUpdateMarked function
 				markedElements = marked;
 			},
-			false );
+			NULL, false );
 		
 		if(exit) {
 			break;
