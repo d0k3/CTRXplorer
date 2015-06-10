@@ -329,7 +329,7 @@ int main(int argc, char **argv) {
 	};
 	
 	while(platformIsRunning()) {
-		exit = !uiFileBrowser( "/", "",
+		exit = !uiFileBrowser( "sdmc:/", "",
 			[&](bool &updateList, bool &resetCursor) { // onLoop function
 				return onLoop(updateList, resetCursor);
 			},
