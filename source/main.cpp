@@ -329,7 +329,7 @@ int main(int argc, char **argv) {
 	};
 	
 	while(platformIsRunning()) {
-		exit = !uiFileBrowser( "/",
+		exit = !uiFileBrowser( "/", "",
 			[&](bool &updateList, bool &resetCursor) { // onLoop function
 				return onLoop(updateList, resetCursor);
 			},
@@ -342,7 +342,9 @@ int main(int argc, char **argv) {
 			[&](std::set<SelectableElement*>* marked) { // onUpdateMarked function
 				markedElements = marked;
 			},
-			NULL, false );
+			[&](std::string selectedPath, bool &updateList) { // onSelect function
+				return false;
+			}, false );
 		
 		if(exit) {
 			break;
