@@ -17,6 +17,15 @@ typedef enum {
 	M_HEXVIEW
 } Mode;
 
+typedef enum  {
+	A_DELETE,
+	A_RENAME,
+	A_COPY,
+	A_MOVE,
+	A_CREATE_DIR,
+	A_CREATE_DUMMY
+} Action;
+
 int main(int argc, char **argv) {
 	if(!platformInit()) {
 		return 0;
@@ -36,6 +45,140 @@ int main(int argc, char **argv) {
 	
 	u32 dummySize = 0;
 	int dummyContent = 0x00;
+	
+	auto processAction = [&](Action action, bool &updateList, bool &resetCursor) {
+		const std::string alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]'`^,~!@#$%&0123456789=+-_.";
+		
+		switch(action) {
+			case A_DELETE: {
+				if((*markedElements).empty()) {
+					if(currentFile.name.compare("..") != 0) {
+						std::string confirmMsg = "Delete \"" + uiTruncateString(currentFile.name, 24, -8) + "\"?" + "\n";
+						if(uiPrompt(TOP_SCREEN, confirmMsg, true)) {
+							if(!fsPathDelete(currentFile.id)) {
+								uiErrorPrompt(TOP_SCREEN, "Deleting", currentFile.name, true, false);
+							}
+						}
+						freeSpace = fsGetFreeSpace(SD);
+						updateList = true;
+						resetCursor = false;
+					}
+				} else {
+					int failCount = 0;
+					std::stringstream object;
+					if((*markedElements).size() == 1) {
+						object << "\"" << uiTruncateString((**((*markedElements).begin())).name, 24, -8) << "\"";
+					} else object << (*markedElements).size() << " paths";
+					std::string confirmMsg = "Delete " + object.str() + "?" + "\n";
+					if(uiPrompt(TOP_SCREEN, confirmMsg, true)) {						
+						for(std::set<SelectableElement*>::iterator it = (*markedElements).begin(); it != (*markedElements).end(); it++) {
+							if(!fsPathDelete((**it).id)) {
+								std::set<SelectableElement*>::iterator next = it;
+								next++;
+								failCount++;
+								if (!uiErrorPrompt(TOP_SCREEN, "Deleting", (**it).name, true, next != (*markedElements).end())) break;
+							}
+						}
+						if((failCount > 0) && ((*markedElements).size() > 1)) {
+							std::stringstream errorMsg;
+							errorMsg << "Deleted" << ((*markedElements).size() - failCount) << " of " << (*markedElements).size() << " paths!" << "\n";
+							uiPrompt(TOP_SCREEN, errorMsg.str(), false);
+						}
+						freeSpace = fsGetFreeSpace(SD);
+						(*markedElements).clear();
+						updateList = true;
+						resetCursor = false;
+					}
+				}
+				break;
+			}
+				
+			case A_RENAME: {
+				if(currentFile.name.compare("..") != 0) { // RENAME
+					std::string confirmMsg = "Rename \"" + uiTruncateString(currentFile.name, 24, -8) + "\"?\nEnter new name below:\n";
+					std::string name = uiStringInput(TOP_SCREEN, currentFile.name, alphabet, confirmMsg);
+					if(!name.empty()) {
+						if(!fsPathRename(currentFile.id, currentDir + "/" + name)) {
+							uiErrorPrompt(TOP_SCREEN, "Renaming", currentFile.name, true, false);
+						} else {
+							updateList = true;
+							resetCursor = false;
+						}
+					}
+				}
+				break;
+			}
+				
+			case A_COPY:	
+			case A_MOVE: {
+				if(!clipboard.empty()) {
+					int failCount = 0;
+					std::stringstream object;
+					if(clipboard.size() == 1) object << "\"" << uiTruncateString(clipboard.at(0).name, 18, -8) << "\"";
+					else object << clipboard.size() << " paths";
+					std::string confirmMsg = ((action == A_COPY) ? "Copy " : "Move ") + object.str() + " to this destination?" + "\n";
+					if(uiPrompt(TOP_SCREEN, confirmMsg, true)) {
+						bool fail = false;
+						for(std::vector<SelectableElement>::iterator it = clipboard.begin(); it != clipboard.end(); it++) {
+							const std::string dest = (currentDir.compare("/") == 0) ? "/" + (*it).name : currentDir + "/" + (*it).name;
+							fail = (action == A_COPY) ?
+								!fsPathCopy((*it).id, dest, true) :
+								!fsPathRename((*it).id, dest);
+							if(fail) {
+								failCount++;
+								std::string operationStr = (action == A_COPY) ? "Copying" : "Moving";
+								if (!uiErrorPrompt(TOP_SCREEN, operationStr, (*it).name, true, it + 1 != clipboard.end())) break;
+							}
+						}
+						if((failCount > 0) && (clipboard.size() > 1)) {
+							std::stringstream errorMsg;
+							errorMsg << ((action == A_COPY) ? "Copied " : "Moved ");
+							errorMsg << (clipboard.size() - failCount) << " of " << clipboard.size() << " paths!" << "\n";
+							uiPrompt(TOP_SCREEN, errorMsg.str(), false);
+						}
+						freeSpace = fsGetFreeSpace(SD);
+						clipboard.clear();
+						updateList = true;
+						resetCursor = false;
+					}
+				}
+				break;
+			}
+				
+			case A_CREATE_DIR: {
+				std::string confirmMsg = "Create new folder here?\nEnter name below:\n";
+				std::string name = uiStringInput(TOP_SCREEN, "newdir", alphabet, confirmMsg); 
+				if(!name.empty()) {
+					if(!fsCreateDir(currentDir + "/" + name)) {
+						uiErrorPrompt(TOP_SCREEN, "Create Folder", name, true, false);
+					}
+					updateList = true;
+					resetCursor = false;
+				}
+				break;
+			}
+				
+			case A_CREATE_DUMMY: {
+				std::stringstream object;
+				if(dummySize == 0) object << "zero byte dummy file";
+				else object << uiFormatBytes(dummySize) << " dummy file";
+				std::string confirmMsg = "Generate " + object.str() + " here?\nEnter name below:\n";
+				std::string name = uiStringInput(TOP_SCREEN, "dummy.bin", alphabet, confirmMsg);
+				if(!name.empty()) {
+					if(!fsCreateDummyFile(currentDir + "/" + name, dummySize, dummyContent, true)) {
+						uiErrorPrompt(TOP_SCREEN, "Generating", name, true, false);
+					} 
+					freeSpace = fsGetFreeSpace(SD);
+					updateList = true;
+					resetCursor = false;
+				}
+				break;
+			}
+				
+			default:
+				break;				
+		}
+	};
 	
 	auto onLoopDisplay = [&]() {
 		gpuViewport(TOP_SCREEN, 0, 0, TOP_WIDTH, TOP_HEIGHT);
@@ -136,7 +279,6 @@ int main(int argc, char **argv) {
 	};
 	
 	auto onLoop = [&](bool &updateList, bool &resetCursor) {
-		const std::string alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]'`^,~!@#$%&0123456789=+-_.";
 		bool breakLoop = false;
 		
 		// START - EXIT TO HB LAUNCHER
@@ -161,31 +303,11 @@ int main(int argc, char **argv) {
 				dummyContent = 0x00;
 				while(platformIsRunning() && inputIsHeld(BUTTON_R)) {
 					if(inputIsPressed(BUTTON_X)) {
-						std::string confirmMsg = "Create new folder here?\nEnter name below:\n";
-						std::string name = uiStringInput(TOP_SCREEN, "newdir", alphabet, confirmMsg); 
-						if(!name.empty()) {
-							if(!fsCreateDir(currentDir + "/" + name)) {
-								uiErrorPrompt(TOP_SCREEN, "Create Folder", name, true, false);
-							}
-							updateList = true;
-							resetCursor = false;
-						}
+						processAction(A_CREATE_DIR, updateList, resetCursor);
 					}
 					
 					if(inputIsPressed(BUTTON_Y)) {
-						std::stringstream object;
-						if(dummySize == 0) object << "zero byte dummy file";
-						else object << uiFormatBytes(dummySize) << " dummy file";
-						std::string confirmMsg = "Generate " + object.str() + " here?\nEnter name below:\n";
-						std::string name = uiStringInput(TOP_SCREEN, "dummy.bin", alphabet, confirmMsg);
-						if(!name.empty()) {
-							if(!fsCreateDummyFile(currentDir + "/" + name, dummySize, dummyContent, true)) {
-								uiErrorPrompt(TOP_SCREEN, "Generating", name, true, false);
-							} 
-							freeSpace = fsGetFreeSpace(SD);
-							updateList = true;
-							resetCursor = false;
-						}
+						processAction(A_CREATE_DUMMY, updateList, resetCursor);
 					}
 					
 					if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP) || inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
@@ -235,91 +357,16 @@ int main(int argc, char **argv) {
 					(*markedElements).clear();
 				} else if(currentFile.name.compare("..") != 0) clipboard.push_back(currentFile);
 			} else { // COPY / MOVE FILES FROM CLIPBOARD
-				int failCount = 0;
-				std::stringstream object;
-				if(clipboard.size() == 1) object << "\"" << uiTruncateString(clipboard.at(0).name, 18, -8) << "\"";
-				else object << clipboard.size() << " paths";
-				std::string confirmMsg = ((mode == M_DEL_COPY) ? "Copy " : "Move ") + object.str() + " to this destination?" + "\n";
-				if(uiPrompt(TOP_SCREEN, confirmMsg, true)) {
-					bool fail = false;
-					for(std::vector<SelectableElement>::iterator it = clipboard.begin(); it != clipboard.end(); it++) {
-						const std::string dest = (currentDir.compare("/") == 0) ? "/" + (*it).name : currentDir + "/" + (*it).name;
-						fail = (mode == M_DEL_COPY) ?
-							!fsPathCopy((*it).id, dest, true) :
-							!fsPathRename((*it).id, dest);
-						if(fail) {
-							failCount++;
-							std::string operationStr = (mode == M_DEL_COPY) ? "Copying" : "Moving";
-							if (!uiErrorPrompt(TOP_SCREEN, operationStr, (*it).name, true, it + 1 != clipboard.end())) break;
-						}
-					}
-					if((failCount > 0) && (clipboard.size() > 1)) {
-						std::stringstream errorMsg;
-						errorMsg << ((mode == M_DEL_COPY) ? "Copied " : "Moved ");
-						errorMsg << (clipboard.size() - failCount) << " of " << clipboard.size() << " paths!" << "\n";
-						uiPrompt(TOP_SCREEN, errorMsg.str(), false);
-					}
-					freeSpace = fsGetFreeSpace(SD);
-					clipboard.clear();
-					updateList = true;
-					resetCursor = false;
-				}
+				processAction((mode == M_DEL_COPY) ? A_COPY : A_MOVE, updateList, resetCursor);
 			}
 		}
 		
 		// X - DELETE / RENAME
 		if(inputIsPressed(BUTTON_X)) {
 			if(mode == M_DEL_COPY) { // DELETE
-				if((*markedElements).empty()) {
-					if(currentFile.name.compare("..") != 0) {
-						std::string confirmMsg = "Delete \"" + uiTruncateString(currentFile.name, 24, -8) + "\"?" + "\n";
-						if(uiPrompt(TOP_SCREEN, confirmMsg, true)) {
-							if(!fsPathDelete(currentFile.id)) {
-								uiErrorPrompt(TOP_SCREEN, "Deleting", currentFile.name, true, false);
-							}
-						}
-						freeSpace = fsGetFreeSpace(SD);
-						updateList = true;
-						resetCursor = false;
-					}
-				} else {
-					int failCount = 0;
-					std::stringstream object;
-					if((*markedElements).size() == 1) {
-						object << "\"" << uiTruncateString((**((*markedElements).begin())).name, 24, -8) << "\"";
-					} else object << (*markedElements).size() << " paths";
-					std::string confirmMsg = "Delete " + object.str() + "?" + "\n";
-					if(uiPrompt(TOP_SCREEN, confirmMsg, true)) {						
-						for(std::set<SelectableElement*>::iterator it = (*markedElements).begin(); it != (*markedElements).end(); it++) {
-							if(!fsPathDelete((**it).id)) {
-								std::set<SelectableElement*>::iterator next = it;
-								next++;
-								failCount++;
-								if (!uiErrorPrompt(TOP_SCREEN, "Deleting", (**it).name, true, next != (*markedElements).end())) break;
-							}
-						}
-						if((failCount > 0) && ((*markedElements).size() > 1)) {
-							std::stringstream errorMsg;
-							errorMsg << "Deleted" << ((*markedElements).size() - failCount) << " of " << (*markedElements).size() << " paths!" << "\n";
-							uiPrompt(TOP_SCREEN, errorMsg.str(), false);
-						}
-						freeSpace = fsGetFreeSpace(SD);
-						(*markedElements).clear();
-						updateList = true;
-						resetCursor = false;
-					}
-				}
+				processAction(A_DELETE, updateList, resetCursor);
 			} else if(currentFile.name.compare("..") != 0) { // RENAME
-				std::string confirmMsg = "Rename \"" + uiTruncateString(currentFile.name, 24, -8) + "\"?\nEnter new name below:\n";
-				std::string name = uiStringInput(TOP_SCREEN, currentFile.name, alphabet, confirmMsg);
-				if(!name.empty()) {
-					if(!fsPathRename(currentFile.id, currentDir + "/" + name)) {
-						uiErrorPrompt(TOP_SCREEN, "Renaming", currentFile.name, true, false);
-					} else {
-						updateList = true;
-						resetCursor = false;
-					}
-				}
+				processAction(A_RENAME, updateList, resetCursor);
 			}
 		}
 		
