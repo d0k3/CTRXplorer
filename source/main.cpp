@@ -30,6 +30,8 @@ int main(int argc, char **argv) {
 	if(!platformInit()) {
 		return 0;
 	}
+	
+	const std::string title = "CTRX SD Explorer v0.7.4";
 
 	bool ninjhax = platformIsNinjhax();
 	bool exit = false;
@@ -180,12 +182,45 @@ int main(int argc, char **argv) {
 		}
 	};
 	
+	auto instructionBlock = [&]() {
+		std::stringstream stream;
+		std::stringstream object;
+		if((*markedElements).size() > 1) object << "marked files";
+		else object << (((*markedElements).empty()) ? "selected file" : "marked file");
+		stream << "L - Mark files (use with " << (char) 0x018 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ")" << "\n";
+		stream << "R - (Tap) Switch mode / (Hold) Create..." << "\n";
+		if(mode == M_DEL_COPY) {
+			stream << "X - DELETE " << object.str() << "\n";
+			if(clipboard.size() > 0) stream << "Y - PASTE/COPY" << ((clipboard.size() > 1) ? " files" : " file") << " from clipboard" << "\n";
+			else stream << "Y - COPY " << object.str() << "\n";
+		} else if(mode == M_REN_MOVE) {
+			stream << "X - RENAME selected file" << "\n";
+			if(clipboard.size() > 0) stream << "Y - PASTE/MOVE" << ((clipboard.size() > 1) ? " files" : " file") << " from clipboard" << "\n";
+			else stream << "Y - MOVE " << object.str() << "\n";
+		} else if(mode == M_CREATE) {
+			stream << "X - CREATE new subdirectory" << "\n";
+			stream << "Y - GENERATE " << ((dummySize == 0) ? "zero byte" : uiFormatBytes(dummySize)) << " dummy file";
+			if(dummySize > 0) {
+				if(dummyContent > 0xFF) stream << " (XX)";
+				else stream << " (" << std::uppercase << std::setfill('0') << std::hex << std::setw(2) << (dummyContent & 0xFF) << std::nouppercase << ")";
+			}
+			stream << "\n";
+		}
+		if(clipboard.size() > 0) {
+			stream << "SELECT - Clear Clipboard" << "\n";
+		}
+		if(ninjhax) {
+			stream << "START - Exit to launcher" << "\n";
+		}
+		
+		return stream.str();
+	};
+	
 	auto onLoopDisplay = [&]() {
 		gpuViewport(TOP_SCREEN, 0, 0, TOP_WIDTH, TOP_HEIGHT);
 		gputOrtho(0, TOP_WIDTH, 0, TOP_HEIGHT, -1, 1);		
 		gpuClear();
 		
-		const std::string title = "CTRX SD Explorer v0.7.3";
 		std::string str;
 		
 		u32 screenWidth = gpuGetViewportWidth();
@@ -193,7 +228,7 @@ int main(int argc, char **argv) {
 		
 		u32 vpos0 = screenHeight - 1 - 12 - 4;
 		u32 vpos1 = vpos0 - 11;
-		u32 cbdisp = 10;
+		u32 cbDisplay = 10;
 		u8 gr = 0x9F;
 		
 		// TOP BAR -> CURRENT DIRECTORY & FREE SPACE
@@ -222,13 +257,13 @@ int main(int argc, char **argv) {
 			str = stream.str();
 			gputDrawString(str, (screenWidth - 1) - gputGetStringWidth(str, 8), vpos0 - 8, 8, 8);
 			u32 vpos = vpos1;
-			for(u32 i = 0; (i < clipboard.size()) && (i < cbdisp); i++, vpos -= 9) {
+			for(u32 i = 0; (i < clipboard.size()) && (i < cbDisplay); i++, vpos -= 9) {
 				str = uiTruncateString(clipboard.at(i).name, 22, -8);
 				gputDrawString(str, (screenWidth - 1) - gputGetStringWidth(str, 8), vpos - 8, 8, 8);
 			}
-			if(clipboard.size() > cbdisp) {
+			if(clipboard.size() > cbDisplay) {
 				stream.str("");
-				stream << "(+ " << clipboard.size() - cbdisp << " more files)";
+				stream << "(+ " << clipboard.size() - cbDisplay << " more files)";
 				str = stream.str();
 				gputDrawString(str, (screenWidth - 1) - gputGetStringWidth(str, 8), vpos - 8, 8, 8, gr, gr, gr);
 			} else if(clipboard.size() == 1) {
@@ -239,37 +274,7 @@ int main(int argc, char **argv) {
 		}
 		
 		// INSTRUCTIONS BLOCK
-		std::stringstream stream;
-		std::stringstream object;
-		if((*markedElements).size() > 1) object << "marked files";
-		else object << (((*markedElements).empty()) ? "selected file" : "marked file");
-		stream << title << "\n";
-		stream << "L - Mark files (use with " << (char) 0x018 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ")" << "\n";
-		stream << "R - (Tap) Switch mode / (Hold) Create..." << "\n";
-		if(mode == M_DEL_COPY) {
-			stream << "X - DELETE " << object.str() << "\n";
-			if(clipboard.size() > 0) stream << "Y - PASTE/COPY" << ((clipboard.size() > 1) ? " files" : " file") << " from clipboard" << "\n";
-			else stream << "Y - COPY " << object.str() << "\n";
-		} else if(mode == M_REN_MOVE) {
-			stream << "X - RENAME selected file" << "\n";
-			if(clipboard.size() > 0) stream << "Y - PASTE/MOVE" << ((clipboard.size() > 1) ? " files" : " file") << " from clipboard" << "\n";
-			else stream << "Y - MOVE " << object.str() << "\n";
-		} else if(mode == M_CREATE) {
-			stream << "X - CREATE new subdirectory" << "\n";
-			stream << "Y - GENERATE " << ((dummySize == 0) ? "zero byte" : uiFormatBytes(dummySize)) << " dummy file";
-			if(dummySize > 0) {
-				if(dummyContent > 0xFF) stream << " (XX)";
-				else stream << " (" << std::uppercase << std::setfill('0') << std::hex << std::setw(2) << (dummyContent & 0xFF) << std::nouppercase << ")";
-			}
-			stream << "\n";
-		}
-		if(clipboard.size() > 0) {
-			stream << "SELECT - Clear Clipboard" << "\n";
-		}
-		if(ninjhax) {
-			stream << "START - Exit to launcher" << "\n";
-		}
-		str = stream.str();
+		str = title + "\n" + instructionBlock();
 		gputDrawString(str, (screenWidth - 320) / 2, 4, 8, 8);
 		
 		gpuFlush();
