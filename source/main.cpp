@@ -10,13 +10,6 @@
 #include <sstream>
 #include <iomanip>
 
-typedef enum {
-	M_DEL_COPY,
-	M_REN_MOVE,
-	M_CREATE,
-	M_HEXVIEW
-} Mode;
-
 typedef enum  {
 	A_DELETE,
 	A_RENAME,
@@ -36,7 +29,6 @@ int main(int argc, char **argv) {
 	bool ninjhax = platformIsNinjhax();
 	bool exit = false;
 	
-	Mode mode = M_DEL_COPY;
 	const u64 tapTime = 240;
 	u64 inputRHoldTime = 0;
 	u64 inputXHoldTime = 0;
