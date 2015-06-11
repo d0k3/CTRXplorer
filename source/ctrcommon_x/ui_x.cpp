@@ -424,6 +424,10 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 	const int dispSize = 30;
 	int fastscroll = (alphabet.size() > 16) ? 4 : 2;
 	
+	const u64 tapTime =  360;
+	u64 inputXHoldTime = 0;
+	u64 inputYHoldTime = 0;
+	
 	int cursor_s = 0;
 	int cursor_a = -1;
 	int scroll = 0;	
@@ -431,6 +435,9 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 	
 	std::string resultStr = (preset.empty()) ? alphabet.substr(0,1) : preset;
 	bool result = false;
+	
+	if(inputIsHeld(BUTTON_X)) inputXHoldTime = (u64) -1;
+	if(inputIsHeld(BUTTON_Y)) inputYHoldTime = (u64) -1;
 	
 	while(platformIsRunning()) {
 		std::stringstream stream;
@@ -440,14 +447,9 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 		stream << ((resultStr.size() - scroll > dispSize) ? ">" : "|") << "\n";
 		for(int i = scroll; i <= cursor_s; i++) stream << " ";
 		stream << "^" << "\n" << "\n";
-		stream << "R - (" << (char) 0x18 << (char) 0x19 << ") fast scroll / (XY) switch" << "\n";
-		if(inputIsHeld(BUTTON_R)) {
-			stream << "X - clear input" << "\n";
-			stream << "Y - reset input" << "\n" << "\n";
-		} else {
-			stream << "X - remove character" << "\n";
-			stream << "Y - insert character" << "\n" << "\n";
-		}
+		stream << "R - [h] (" << (char) 0x18 << (char) 0x19 << ") fast scroll" << "\n";
+		stream << "X - [t] remove char / [h] clear" << "\n";
+		stream << "Y - [t] insert char / [h] reset" << "\n" << "\n";
 		stream << "Press A to confirm, B to cancel." << "\n";
 	
 		inputPoll();
@@ -462,30 +464,41 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 			break;
 		}
 		
-		if(inputIsPressed(BUTTON_X)) {
-			if(inputIsHeld(BUTTON_R)) {
+		if(inputIsHeld(BUTTON_X) && (inputXHoldTime != (u64) -1)) {
+			if(inputXHoldTime == 0) inputXHoldTime = platformGetTime();
+			else if(platformGetTime() - inputXHoldTime >= tapTime) {
 				resultStr = alphabet.substr(0, 1);
 				cursor_s = 0;
 				cursor_a = 0;
 				scroll = 0;
-			} else {
+				inputXHoldTime = (u64) -1;
+			}
+		}
+		if(inputIsReleased(BUTTON_X) && (inputXHoldTime != 0)) {
+			if((inputXHoldTime != (u64) -1) && (resultStr.size() > 1)) {
 				resultStr.erase(cursor_s, 1);
 				if(cursor_s == (int) resultStr.size()) cursor_s--;
 				cursor_a = -1;
 			}
+			inputXHoldTime = 0;
 		}
 		
-		if(inputIsPressed(BUTTON_Y)) {
-			if(inputIsHeld(BUTTON_R)) {
+		if(inputIsHeld(BUTTON_Y) && (inputYHoldTime != (u64) -1)) {
+			if(inputYHoldTime == 0) inputYHoldTime = platformGetTime();
+			else if(platformGetTime() - inputYHoldTime >= tapTime) {
 				resultStr = (preset.empty()) ? alphabet.substr(0,1) : preset;
 				cursor_s = 0;
 				cursor_a = -1;
 				scroll = 0;
-				
-			} else {
+				inputYHoldTime = (u64) -1;
+			}
+		}
+		if(inputIsReleased(BUTTON_Y) && (inputYHoldTime != 0)) {
+			if(inputYHoldTime != (u64) -1) {
 				resultStr.insert(cursor_s, alphabet.substr(0,1));
 				cursor_a = 0;
 			}
+			inputYHoldTime = 0;
 		}
 		
 		if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP)) {

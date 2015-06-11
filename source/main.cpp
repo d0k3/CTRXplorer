@@ -31,13 +31,16 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 	
-	const std::string title = "CTRX SD Explorer v0.7.4";
+	const std::string title = "CTRX SD Explorer v0.8.0";
 
 	bool ninjhax = platformIsNinjhax();
 	bool exit = false;
 	
 	Mode mode = M_DEL_COPY;
-	u64 lastSwitchTime = 0;
+	const u64 tapTime = 240;
+	u64 inputRHoldTime = 0;
+	u64 inputXHoldTime = 0;
+	u64 inputYHoldTime = 0;
 	
 	std::string currentDir = "";
 	SelectableElement currentFile = { "", "" };
@@ -45,7 +48,7 @@ int main(int argc, char **argv) {
 	std::vector<SelectableElement> clipboard;
 	u64 freeSpace = fsGetFreeSpace(SD);
 	
-	u32 dummySize = 0;
+	u32 dummySize = (u32) -1;
 	int dummyContent = 0x00;
 	
 	auto processAction = [&](Action action, bool &updateList, bool &resetCursor) {
@@ -184,34 +187,21 @@ int main(int argc, char **argv) {
 	
 	auto instructionBlock = [&]() {
 		std::stringstream stream;
-		std::stringstream object;
-		if((*markedElements).size() > 1) object << "marked files";
-		else object << (((*markedElements).empty()) ? "selected file" : "marked file");
-		stream << "L - Mark files (use with " << (char) 0x018 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ")" << "\n";
-		stream << "R - (Tap) Switch mode / (Hold) Create..." << "\n";
-		if(mode == M_DEL_COPY) {
-			stream << "X - DELETE " << object.str() << "\n";
-			if(clipboard.size() > 0) stream << "Y - PASTE/COPY" << ((clipboard.size() > 1) ? " files" : " file") << " from clipboard" << "\n";
-			else stream << "Y - COPY " << object.str() << "\n";
-		} else if(mode == M_REN_MOVE) {
-			stream << "X - RENAME selected file" << "\n";
-			if(clipboard.size() > 0) stream << "Y - PASTE/MOVE" << ((clipboard.size() > 1) ? " files" : " file") << " from clipboard" << "\n";
-			else stream << "Y - MOVE " << object.str() << "\n";
-		} else if(mode == M_CREATE) {
-			stream << "X - CREATE new subdirectory" << "\n";
-			stream << "Y - GENERATE " << ((dummySize == 0) ? "zero byte" : uiFormatBytes(dummySize)) << " dummy file";
+		stream << "L - MARK files (use with " << (char) 0x018 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ")" << "\n";
+		if(dummySize == (u32) -1) stream << "R - [t] CREATE folder / [h] file" << "\n";
+		else {
+			stream << "R - [r] GENERATE " << ((dummySize == 0) ? "zero byte" : uiFormatBytes(dummySize)) << " dummy file";
 			if(dummySize > 0) {
 				if(dummyContent > 0xFF) stream << " (XX)";
 				else stream << " (" << std::uppercase << std::setfill('0') << std::hex << std::setw(2) << (dummyContent & 0xFF) << std::nouppercase << ")";
 			}
 			stream << "\n";
 		}
-		if(clipboard.size() > 0) {
-			stream << "SELECT - Clear Clipboard" << "\n";
-		}
-		if(ninjhax) {
-			stream << "START - Exit to launcher" << "\n";
-		}
+		stream << "X - [t] DELETE / [h] RENAME selected" << "\n";
+		if(clipboard.empty()) stream << "Y - COPY/MOVE selected " <<  (((*markedElements).size() > 1) ? "files" : "file") << "\n";
+		else stream << "Y - [t] COPY / [h] MOVE to this folder" << "\n";
+		if(clipboard.size() > 0) stream << "SELECT - Clear Clipboard" << "\n";
+		if(ninjhax) stream << "START - Exit to launcher" << "\n";
 		
 		return stream.str();
 	};
@@ -286,6 +276,8 @@ int main(int argc, char **argv) {
 	auto onLoop = [&](bool &updateList, bool &resetCursor) {
 		bool breakLoop = false;
 		
+		onLoopDisplay();
+		
 		// START - EXIT TO HB LAUNCHER
 		if(inputIsPressed(BUTTON_START) && ninjhax) {
 			exit = true;
@@ -297,85 +289,93 @@ int main(int argc, char **argv) {
 			clipboard.clear();
 		}
 		
-		// R - SWITCH BETWEEN MODES
-		if(inputIsHeld(BUTTON_R)) {
-			if(lastSwitchTime == 0) lastSwitchTime = platformGetTime();
-			else if(platformGetTime() - lastSwitchTime >= 240) {
+		// R - (TAP) CREATE DIRECTORY / (HOLD) GENERATE DUMMY FILE
+		if(inputIsHeld(BUTTON_R) && (inputRHoldTime != (u64) -1)) {
+			if(inputRHoldTime == 0) inputRHoldTime = platformGetTime();
+			else if(platformGetTime() - inputRHoldTime >= tapTime) {
 				u64 lastChangeTime = 0;
-				Mode lastMode = mode;
-				mode = M_CREATE;
 				dummySize = 0;
 				dummyContent = 0x00;
 				while(platformIsRunning() && inputIsHeld(BUTTON_R)) {
-					if(inputIsPressed(BUTTON_X)) {
-						processAction(A_CREATE_DIR, updateList, resetCursor);
-					}
-					
-					if(inputIsPressed(BUTTON_Y)) {
-						processAction(A_CREATE_DUMMY, updateList, resetCursor);
-					}
-					
 					if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP) || inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
 						if(lastChangeTime == 0 || platformGetTime() - lastChangeTime >= 120) {
 							if(inputIsHeld(BUTTON_DOWN)) {
 								dummyContent--;
 								if(dummyContent < 0x00) dummyContent = 0x100;
 							}
-							
 							if(inputIsHeld(BUTTON_UP)) {
 								dummyContent++;
 								if(dummyContent > 0x100) dummyContent = 0x00;
 							}
-							
 							if(inputIsHeld(BUTTON_RIGHT) && (dummySize < 1 << 30)) {
 								dummySize = (dummySize == 0) ? 1 : dummySize << 1;
 							}
-							
 							if(inputIsHeld(BUTTON_LEFT) && (dummySize > 0)) {
 								dummySize = (dummySize == 1) ? 0 : dummySize >> 1;
 							}
-							
 							lastChangeTime = platformGetTime();
 						}
-					} else if (lastChangeTime != 0) lastChangeTime = 0;
-					
+					} else if (lastChangeTime != 0) lastChangeTime = 0;					
 					onLoopDisplay();
 					gpuSwapBuffers(true);
 					inputPoll();
 				}
-				
-				mode = lastMode;
-				lastSwitchTime = 0;
+				processAction(A_CREATE_DUMMY, updateList, resetCursor);
+				inputRHoldTime = 0;
+				dummySize = (u32) -1;
 			}
 		}
-		if(inputIsReleased(BUTTON_R) && (lastSwitchTime != 0)) {
-			mode = ( mode == M_DEL_COPY ) ? M_REN_MOVE : M_DEL_COPY;
-			lastSwitchTime = 0;
+		if(inputIsReleased(BUTTON_R) && (inputRHoldTime != 0)) {
+			if(inputRHoldTime != (u64) -1) {
+				processAction(A_CREATE_DIR, updateList, resetCursor);
+			}
+			inputRHoldTime = 0;
 		}
 		
-		// Y - COPY / MOVE / FILL CLIPBOARD IF EMPTY
-		if(inputIsPressed(BUTTON_Y)) {
-			if(clipboard.empty()) { // FILL CLIPBOARD
+		// Y - (PRESS) FILL CLIPBOARD IF EMPTY / (TAP) COPY / (HOLD) MOVE
+		if(clipboard.empty()) {
+			if(inputIsPressed(BUTTON_Y)) {
 				if(markedElements != NULL && !(*markedElements).empty()) {
 					for(std::set<SelectableElement*>::iterator it = (*markedElements).begin(); it != (*markedElements).end(); it++)
 						clipboard.push_back(*(*it));
 					(*markedElements).clear();
 				} else if(currentFile.name.compare("..") != 0) clipboard.push_back(currentFile);
-			} else { // COPY / MOVE FILES FROM CLIPBOARD
-				processAction((mode == M_DEL_COPY) ? A_COPY : A_MOVE, updateList, resetCursor);
+				inputYHoldTime = (u64) -1;
+			}
+		}  else {
+			if(inputIsHeld(BUTTON_Y) && (inputYHoldTime != (u64) -1)) {
+				if(inputYHoldTime == 0) inputYHoldTime = platformGetTime();
+				else if(platformGetTime() - inputYHoldTime >= tapTime) {
+					processAction(A_MOVE, updateList, resetCursor);
+					inputYHoldTime = 0;
+				}
+			}
+			if(inputIsReleased(BUTTON_Y) && (inputYHoldTime != 0)) {
+				if(inputYHoldTime != (u64) -1) {
+					processAction(A_COPY, updateList, resetCursor);
+				}
+				inputYHoldTime = 0;
 			}
 		}
 		
-		// X - DELETE / RENAME
-		if(inputIsPressed(BUTTON_X)) {
-			if(mode == M_DEL_COPY) { // DELETE
-				processAction(A_DELETE, updateList, resetCursor);
-			} else if(currentFile.name.compare("..") != 0) { // RENAME
-				processAction(A_RENAME, updateList, resetCursor);
+		// X - (TAP) DELETE / (HOLD) RENAME
+		if(inputIsHeld(BUTTON_X) && (inputXHoldTime != (u64) -1)) {
+			if(inputXHoldTime == 0) inputXHoldTime = platformGetTime();
+			else if(platformGetTime() - inputXHoldTime >= tapTime) {
+				if(currentFile.name.compare("..") != 0) {
+					processAction(A_RENAME, updateList, resetCursor);
+					inputXHoldTime = 0;
+				} else inputXHoldTime = (u64) -1;
 			}
 		}
-		
-		onLoopDisplay();
+		if(inputIsReleased(BUTTON_X) && (inputXHoldTime != 0)) {
+			if(inputXHoldTime != (u64) -1) {
+				if((currentFile.name.compare("..") != 0) || !(*markedElements).empty()) {
+					processAction(A_DELETE, updateList, resetCursor);
+				}
+			}
+			inputXHoldTime = 0;
+		}
 		
 		return breakLoop;
 	};
