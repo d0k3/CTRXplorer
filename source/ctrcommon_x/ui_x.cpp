@@ -422,15 +422,16 @@ bool uiErrorPrompt(Screen screen, const std::string operationStr, const std::str
 
 std::string uiStringInput(Screen screen, std::string preset, const std::string alphabet, const std::string message) {
 	const int dispSize = 30;
-	int fastscroll = (alphabet.size() > 16) ? 4 : 2;
+	const u64 tapTime = 360;
+	const u64 scrollTime = 120;
 	
-	const u64 tapTime =  360;
 	u64 inputXHoldTime = 0;
 	u64 inputYHoldTime = 0;
 	
 	int cursor_s = 0;
 	int cursor_a = -1;
-	int scroll = 0;	
+	int scroll = 0;
+	int fastScroll = (alphabet.size() > 16) ? 4 : 2;
 	u64 lastScrollTime = 0;
 	
 	std::string resultStr = (preset.empty()) ? alphabet.substr(0,1) : preset;
@@ -502,19 +503,19 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 		}
 		
 		if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP)) {
-			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= 120) {
+			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= scrollTime) {
 				if(cursor_a < 0) {
 					cursor_a = alphabet.find(resultStr.substr(cursor_s, 1));
 					if (cursor_a < 0) cursor_a = 0;
 				}
 				
 				if(inputIsHeld(BUTTON_UP)) {
-					cursor_a += (inputIsHeld(BUTTON_R)) ? fastscroll : 1;
+					cursor_a += (inputIsHeld(BUTTON_R)) ? fastScroll : 1;
 					while(cursor_a >= (int) alphabet.size()) cursor_a -= alphabet.size();
 				}
 
 				if(inputIsHeld(BUTTON_DOWN)) {
-					cursor_a -= (inputIsHeld(BUTTON_R)) ? fastscroll : 1;
+					cursor_a -= (inputIsHeld(BUTTON_R)) ? fastScroll : 1;
 					while(cursor_a < 0) cursor_a += alphabet.size();
 				}
 				
@@ -522,7 +523,7 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 				lastScrollTime = platformGetTime();
 			}
 		} else if(inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
-			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= 120) {
+			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= scrollTime) {
 				if(inputIsHeld(BUTTON_LEFT) && cursor_s > 0) {
 					if((cursor_s == (int) resultStr.size() - 1) && (resultStr.at(cursor_s) == ' '))
 						resultStr.resize(cursor_s);

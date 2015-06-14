@@ -29,7 +29,6 @@ int main(int argc, char **argv) {
 	bool ninjhax = platformIsNinjhax();
 	bool exit = false;
 	
-	const u64 tapTime = 240;
 	u64 inputRHoldTime = 0;
 	u64 inputXHoldTime = 0;
 	u64 inputYHoldTime = 0;
@@ -266,6 +265,8 @@ int main(int argc, char **argv) {
 	};
 	
 	auto onLoop = [&](bool &updateList, bool &resetCursor) {
+		const u64 tapTime = 240;
+		const u64 scrollTime = 120;
 		bool breakLoop = false;
 		
 		onLoopDisplay();
@@ -290,7 +291,7 @@ int main(int argc, char **argv) {
 				dummyContent = 0x00;
 				while(platformIsRunning() && inputIsHeld(BUTTON_R)) {
 					if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP) || inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
-						if(lastChangeTime == 0 || platformGetTime() - lastChangeTime >= 120) {
+						if(lastChangeTime == 0 || platformGetTime() - lastChangeTime >= scrollTime) {
 							if(inputIsHeld(BUTTON_DOWN)) {
 								dummyContent--;
 								if(dummyContent < 0x00) dummyContent = 0x100;
