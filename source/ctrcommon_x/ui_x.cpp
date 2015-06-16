@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <iomanip>
 #include <sstream>
 #include <stack>
 
@@ -226,6 +227,9 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
 
 				gputDrawString(details.str(), 0, gpuGetViewportHeight() - 1 - gputGetStringHeight(details.str(), 8), 8, 8);
 			}
+			
+			gpuFlush();
+			gpuFlushBuffer();
 		}
 
 		bool result = onLoop != NULL && onLoop(elements, elementsDirty, resetCursorIfDirty);
@@ -255,11 +259,6 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
 			
 			if (onUpdateCursor != NULL) onUpdateCursor((selected = &elements.at((u32) cursor)));
 			markedElements.clear();
-		}
-
-		if(useTopScreen) {
-			gpuFlush();
-			gpuFlushBuffer();
 		}
 
 		gpuSwapBuffers(true);
@@ -377,6 +376,106 @@ bool uiFileBrowser(const std::string rootDirectory, const std::string startPath,
 		},
 		useTopScreen, false);
 
+	return result;
+}
+
+bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool(u32 &offset)> onLoop) {
+	bool result;
+	u32 currOffset = start;
+	
+	u32 rows = (BOTTOM_HEIGHT / 8) - 1;
+	u32 cols = ((BOTTOM_WIDTH / 8) - 8) / ((hex) ? 2 : 1);
+	u32 nShown = rows * cols;
+	
+	u32 fileSize = fsGetFileSize(path);
+	u64 lastScrollTime = 0;
+	
+	
+	result = fsProvideData(path, start, nShown,
+		[&](u32 &offset) {
+			inputPoll();
+			
+			if(inputIsPressed(BUTTON_B)) {
+				return true;
+			}
+
+			if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP) || inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
+				if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= 120) {
+					if(inputIsHeld(BUTTON_DOWN) && (offset + nShown <= fileSize)) {
+						offset += cols;
+					}
+					if(inputIsHeld(BUTTON_UP) && (offset >= cols)) {
+						offset -= cols;
+					}
+					if(inputIsHeld(BUTTON_LEFT)) {
+						offset = (offset > nShown) ? offset - nShown : 0;
+					}
+					if(inputIsHeld(BUTTON_RIGHT)&&(fileSize > nShown)) {
+						offset += nShown;
+						if(offset + nShown > fileSize) {
+							offset = fileSize + (cols - (fileSize % cols)) - nShown;
+						}
+					}
+					currOffset = offset;
+					lastScrollTime = platformGetTime();
+				}
+			} else if(lastScrollTime > 0) {
+				lastScrollTime = 0;
+			}
+			
+			if((onLoop != NULL) && (onLoop(offset)))
+				return true;
+			
+			return false;
+		},
+		[&](u8* data) {
+			gpuViewport(BOTTOM_SCREEN, 0, 0, BOTTOM_WIDTH, BOTTOM_HEIGHT);
+			gputOrtho(0, BOTTOM_WIDTH, 0, BOTTOM_HEIGHT, -1, 1);
+			gpuClear();
+			
+			uiDrawRectangleCrude(0, 0, 8*8, BOTTOM_HEIGHT, 0xFF, 0xFF, 0xFF);
+			uiDrawRectangleCrude(0, BOTTOM_HEIGHT - 8, BOTTOM_WIDTH, 8, 0xFF, 0xFF, 0xFF);
+			
+			std::stringstream index;
+			index << std::hex << std::uppercase;
+			index << std::setfill(' ') << std::setw(8) << "";
+			index << std::setfill('0');
+			for(u32 c = 0; c < cols; c++) {
+				if(hex) index << std::setw(2) << ((currOffset + c)&0xFF);
+				else index << ((currOffset + c)&0xF);
+			}
+			for(u32 r = 0; r < rows; r++) {
+				index << "\n" << std::setw(8) << (currOffset + (r * cols));
+			}
+			
+			std::stringstream viewer;
+			if(hex) {
+				viewer << std::hex << std::setfill('0') << std::uppercase;
+			}
+			for(u32 pos = 0; pos < nShown; ) {
+				viewer << "\n";
+				do {
+					if(currOffset + pos < fileSize) {
+						if(hex) {
+							viewer << std::setw(2) << (u32) data[pos];
+						} else {
+							viewer << (char) data[pos];
+						}
+					}
+					pos++;
+				} while(pos % cols);
+			}
+			
+			gputDrawString(index.str(), 0, 0, 8, 8, 0x00, 0x00, 0x00);
+			gputDrawString(viewer.str(), 8*8, 0, 8, 8);
+			
+			gpuFlush();
+			gpuFlushBuffer();
+			gpuSwapBuffers(true);
+			
+			return false;
+		});
+	
 	return result;
 }
 

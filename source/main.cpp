@@ -374,7 +374,7 @@ int main(int argc, char **argv) {
 	};
 	
 	while(platformIsRunning()) {
-		exit = !uiFileBrowser( "sdmc:/", "",
+		uiFileBrowser( "sdmc:/", currentFile.id,
 			[&](bool &updateList, bool &resetCursor) { // onLoop function
 				return onLoop(updateList, resetCursor);
 			},
@@ -388,11 +388,15 @@ int main(int argc, char **argv) {
 				markedElements = marked;
 			},
 			[&](std::string selectedPath, bool &updateList) { // onSelect function
-				return false;
-			}, false );
+				return true;
+			});
 		
 		if(exit) {
 			break;
+		}
+		
+		if(!uiHexViewer(currentFile.id, 0, 1, NULL)) {
+			uiErrorPrompt(TOP_SCREEN, "Hexview", currentFile.name, true, false);
 		}
 	}
 

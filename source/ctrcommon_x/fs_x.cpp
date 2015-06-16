@@ -3,6 +3,7 @@
 
 #include <ctrcommon/fs.hpp>
 #include <ctrcommon/input.hpp>
+#include <ctrcommon/platform.hpp>
 #include <ctrcommon/ui.hpp>
 
 #include <sys/dirent.h>
@@ -23,6 +24,87 @@ struct fsAlphabetizeFoldersFiles {
 		else return a.isDirectory;
 	}
 };
+
+struct fsBufferedInputFile::Private {
+	std::string path;
+	FILE* fp;
+	size_t fileSize;
+	size_t bufOffset;
+	size_t bufSize;
+	size_t bufBackSize;
+	size_t bufForwSize;
+	u8* buffer;
+	bool valid;
+};
+
+fsBufferedInputFile::fsBufferedInputFile(std::string fileName, u32 bufferSize, u32 bufferBackSize) {
+	d = (fsBufferedInputFile::Private*) malloc(sizeof(fsBufferedInputFile::Private));
+	if(d != NULL) {
+		d->valid = false;
+		d->bufForwSize = bufferSize;
+		d->bufBackSize = bufferBackSize;
+		d->bufSize = bufferSize + bufferBackSize;
+		d->bufOffset = 0;
+		d->fp = NULL;
+		d->buffer = NULL;
+		if(!fileName.empty()) {
+			d->fp = fopen(fileName.c_str(), "rb");
+			d->buffer = (u8*) malloc(bufferSize);
+			if((d->fp != NULL) && (d->buffer != NULL)) {
+				memset(d->buffer, 0x00, d->bufSize);
+				fread(d->buffer, 1, d->bufSize, d->fp);
+				fseek(d->fp, 0, SEEK_END);
+				d->fileSize = ftell(d->fp);
+				d->valid = true;
+			}
+		}
+	}
+}
+
+fsBufferedInputFile::~fsBufferedInputFile() {
+	if(d != NULL) {
+		if(d->fp != NULL) fclose(d->fp);
+		if(d->buffer != NULL) free(d->buffer);
+		free(d);
+	}
+}
+
+u8* fsBufferedInputFile::at(u32 offset, u32 size) {
+	if(offset > d->fileSize) {
+		offset = d->fileSize; // must never go above that!
+	}
+	
+	if(size > d->bufForwSize) {
+		return NULL;
+	}
+	
+	if((offset < d->bufOffset) || (offset + size > d->bufOffset + d->bufSize)) {
+		u32 bufNewOffset;
+		if(offset < d->bufOffset) {
+			bufNewOffset = (d->bufForwSize < offset) ? offset - d->bufForwSize : 0;
+		} else {
+			bufNewOffset = offset - d->bufBackSize;
+			if(bufNewOffset + d->bufSize > d->fileSize) {
+				bufNewOffset = (d->fileSize + size) - d->bufSize;
+				if(bufNewOffset > offset) bufNewOffset = offset;
+				memset(d->buffer + d->bufSize - size, 0x00, size); 
+			}
+		}
+		fseek(d->fp, bufNewOffset, SEEK_SET);
+		fread(d->buffer, 1, d->bufSize, d->fp);
+		d->bufOffset = bufNewOffset;
+	}
+	
+	return d->buffer - d->bufOffset + offset;
+}
+
+u32 fsBufferedInputFile::size() {
+	return d->fileSize;
+}
+
+bool fsBufferedInputFile::valid() {
+	return d->valid;
+}
 
 bool fsShowProgress(const std::string operationStr, const std::string pathStr, u64 pos, u64 totalSize) {
 	static u32 prevProgress = -1;
@@ -45,6 +127,71 @@ u32 fsGetFileSize(const std::string path) {
 std::string fsGetName(const std::string path) {
 	std::string::size_type slashPos = path.rfind('/');
 	return (slashPos != std::string::npos) ? path.substr(slashPos + 1) : path;
+}
+
+bool fsProvideData(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset)> onLoop, std::function<bool(u8* data)> onUpdate) {
+	if((onLoop == NULL) || (onUpdate == NULL)) {
+		errno = ENOTSUP;
+		return false;
+	}
+	if(!fsExists(path)) {
+		errno = ENOENT;
+		return false;
+	}
+	
+	FILE* fp = fopen(path.c_str(), "rb");
+	u8* buffer = (u8*) calloc(buffSize, 1);
+	u8* bufferEnd = buffer + buffSize;
+	
+	u32 fileSize  = fsGetFileSize(path);
+	u32 offsetPrev = (u32) -1;
+	
+	bool result = false;
+	
+	if((fp == NULL) || (buffer == NULL)) {
+		if(fp != NULL) fclose(fp);
+		if(buffer != NULL) free(buffer);
+		return false;
+	}
+	
+	while(platformIsRunning()) {
+		if((offset != offsetPrev) && (offset <= fileSize)) {
+			if(offset < offsetPrev) {
+				u32 dataEnd = offset + buffSize;
+				u32 overlap = (dataEnd > offsetPrev) ? dataEnd - offsetPrev : 0;
+				if(overlap) memmove(bufferEnd - overlap, buffer, overlap);
+				fseek(fp, offset, SEEK_SET);
+				fread(buffer, 1, buffSize - overlap, fp);
+			} else {
+				// u32 dataEnd = offset + buffSize;
+				u32 dataEndPrev = offsetPrev + buffSize;
+				u32 overlap = (dataEndPrev > offset) ? dataEndPrev - offset : 0;
+				if(overlap) memmove(buffer, bufferEnd - overlap, overlap);
+				fseek(fp, offset + overlap, SEEK_SET);
+				fread(buffer + overlap, 1, buffSize - overlap, fp);
+				/*if(dataEnd > fileSize) {
+					u32 zeroAdd = (offset + overlap > dataEnd - fileSize) ?
+						offset + overlap : dataEnd - fileSize;
+					memset(bufferEnd - zeroAdd, 0x00, buffSize - zeroAdd);
+				}*/
+			}
+			offsetPrev = offset;
+			if(onUpdate(buffer)) {
+				result = true;
+			}
+		} else if(offset > fileSize) {
+			offset = fileSize;
+		} else if(onLoop(offset)) {
+			result = true;
+		}
+		
+		if(result) break;
+	}
+	
+	if(fp != NULL) fclose(fp);
+	if(buffer != NULL) free(buffer);
+	
+	return result;
 }
 
 bool fsPathDelete(const std::string path) {
