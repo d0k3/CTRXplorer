@@ -78,21 +78,19 @@ bool fsProvideData(const std::string path, u32 offset, u32 buffSize, std::functi
 			if(offset < offsetPrev) {
 				u32 dataEnd = offset + buffSize;
 				u32 overlap = (dataEnd > offsetPrev) ? dataEnd - offsetPrev : 0;
-				if(overlap) memmove(bufferEnd - overlap, buffer, overlap);
+				memmove(bufferEnd - overlap, buffer, overlap);
 				fseek(fp, offset, SEEK_SET);
 				fread(buffer, 1, buffSize - overlap, fp);
 			} else {
-				// u32 dataEnd = offset + buffSize;
+				u32 dataEnd = offset + buffSize;
 				u32 dataEndPrev = offsetPrev + buffSize;
 				u32 overlap = (dataEndPrev > offset) ? dataEndPrev - offset : 0;
-				if(overlap) memmove(buffer, bufferEnd - overlap, overlap);
+				memmove(buffer, bufferEnd - overlap, overlap);
+				if(dataEnd > fileSize) {
+					memset(buffer + overlap, 0x00, buffSize - overlap);
+				}
 				fseek(fp, offset + overlap, SEEK_SET);
 				fread(buffer + overlap, 1, buffSize - overlap, fp);
-				/*if(dataEnd > fileSize) { // BUGGY!
-					u32 zeroAdd = (offset + overlap > dataEnd - fileSize) ?
-						offset + overlap : dataEnd - fileSize;
-					memset(bufferEnd - zeroAdd, 0x00, buffSize - zeroAdd);
-				}*/
 			}
 			offsetPrev = offset;
 			if(onUpdate(buffer)) {

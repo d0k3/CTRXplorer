@@ -378,7 +378,6 @@ bool uiFileBrowser(const std::string rootDirectory, const std::string startPath,
 
 bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool(u32 &offset)> onLoop) {
 	bool result;
-	u32 currOffset = start;
 	
 	u32 rows = (BOTTOM_HEIGHT / 8) - 1;
 	u32 cols = ((BOTTOM_WIDTH / 8) - 8) / ((hex) ? 2 : 1);
@@ -386,6 +385,10 @@ bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool
 	
 	u32 fileSize = fsGetFileSize(path);
 	u64 lastScrollTime = 0;
+	
+	u32 currOffset = start;
+	u32 maxOffset = (fileSize <= nShown) ? 0 :
+		((fileSize % cols) ? fileSize + (cols - (fileSize % cols)) - nShown : fileSize - nShown);
 	
 	
 	result = fsProvideData(path, start, nShown,
@@ -398,20 +401,19 @@ bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool
 
 			if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP) || inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
 				if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= 120) {
-					if(inputIsHeld(BUTTON_DOWN) && (offset + nShown < fileSize)) {
+					if(inputIsHeld(BUTTON_DOWN) && (offset < maxOffset)) {
 						offset += cols;
 					}
-					if(inputIsHeld(BUTTON_UP) && (offset >= cols)) {
+					if(inputIsHeld(BUTTON_UP) && (offset > 0)) {
 						offset -= cols;
 					}
 					if(inputIsHeld(BUTTON_LEFT)) {
-						offset = (offset > nShown) ? offset - nShown : 0;
+						if(offset > nShown) offset -= nShown;
+						else offset = 0;
 					}
-					if(inputIsHeld(BUTTON_RIGHT) && (offset + nShown < fileSize)) {
+					if(inputIsHeld(BUTTON_RIGHT)) {
 						offset += nShown;
-						if(offset + nShown > fileSize) { // BAD!!!
-							offset = fileSize + (cols - (fileSize % cols)) - nShown;
-						}
+						if(offset > maxOffset) offset = maxOffset;
 					}
 					currOffset = offset;
 					lastScrollTime = platformGetTime();
