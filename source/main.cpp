@@ -10,6 +10,11 @@
 #include <sstream>
 #include <iomanip>
 
+typedef enum {
+	M_BROWSER,
+	M_HEXVIEWER
+} Mode;
+
 typedef enum  {
 	A_DELETE,
 	A_RENAME,
@@ -24,10 +29,13 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 	
-	const std::string title = "CTRX SD Explorer v0.8.0";
+	const std::string title = "CTRX SD Explorer v0.8.5";
+	const u64 tapTime = 240;
 
 	bool ninjhax = platformIsNinjhax();
 	bool exit = false;
+	
+	Mode mode = M_BROWSER;
 	
 	u64 inputRHoldTime = 0;
 	u64 inputXHoldTime = 0;
@@ -41,6 +49,8 @@ int main(int argc, char **argv) {
 	
 	u32 dummySize = (u32) -1;
 	int dummyContent = 0x00;
+	
+	u32 hvStoredOffset = (u32) -1;
 	
 	auto processAction = [&](Action action, bool &updateList, bool &resetCursor) {
 		const std::string alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]'`^,~!@#$%&0123456789=+-_.";
@@ -176,7 +186,7 @@ int main(int argc, char **argv) {
 		}
 	};
 	
-	auto instructionBlock = [&]() {
+	auto instructionBlockBrowser = [&]() {
 		std::stringstream stream;
 		stream << "L - MARK files (use with " << (char) 0x018 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ")" << "\n";
 		if(dummySize == (u32) -1) stream << "R - [t] CREATE folder / [h] file" << "\n";
@@ -192,7 +202,20 @@ int main(int argc, char **argv) {
 		if(clipboard.empty()) stream << "Y - COPY/MOVE selected " <<  (((*markedElements).size() > 1) ? "files" : "file") << "\n";
 		else stream << "Y - [t] COPY / [h] MOVE to this folder" << "\n";
 		if(clipboard.size() > 0) stream << "SELECT - Clear Clipboard" << "\n";
-		if(ninjhax) stream << "START - Exit to launcher" << "\n";
+		
+		return stream.str();
+	};
+	
+	auto instructionBlockHexViewer = [&]() {
+		std::stringstream stream;
+		stream << std::setfill('0');
+		stream << "L/R - Move to beginning / end" << "\n";
+		stream << "X - Go to ... in [t] hex / [h] dec" << "\n";
+		if(hvStoredOffset != (u32) -1) {
+			stream << "Y - Return to " << "0x" << std::hex << std::uppercase << std::setw(8) << hvStoredOffset;
+			stream  << std::nouppercase << " (" << std::dec << hvStoredOffset << ")" << "\n";
+		}
+		stream << "B - Exit to file browser" << "\n";
 		
 		return stream.str();
 	};
@@ -255,7 +278,8 @@ int main(int argc, char **argv) {
 		}
 		
 		// INSTRUCTIONS BLOCK
-		str = title + "\n" + instructionBlock();
+		str = title + "\n" + ((mode == M_BROWSER) ? instructionBlockBrowser() : instructionBlockHexViewer());
+		if(ninjhax) str += "START - Exit to launcher\n";
 		gputDrawString(str, (screenWidth - 320) / 2, 4, 8, 8);
 		
 		gpuFlush();
@@ -264,8 +288,7 @@ int main(int argc, char **argv) {
 		return;
 	};
 	
-	auto onLoop = [&](bool &updateList, bool &resetCursor) {
-		const u64 tapTime = 240;
+	auto onLoopBrowser = [&](bool &updateList, bool &resetCursor) {
 		const u64 scrollTime = 120;
 		bool breakLoop = false;
 		
@@ -373,30 +396,86 @@ int main(int argc, char **argv) {
 		return breakLoop;
 	};
 	
+	auto onLoopHexViewer = [&](u32 &offset) {
+		bool breakLoop = false;
+		
+		onLoopDisplay();
+		
+		// START - EXIT TO HB LAUNCHER
+		if(inputIsPressed(BUTTON_START) && ninjhax) {
+			exit = true;
+			return true;
+		}
+		
+		// L - GO TO FILE BEGIN
+		if(inputIsPressed(BUTTON_L)) {
+			offset = 0;
+		}
+		
+		// R - GO TO FILE END
+		if(inputIsPressed(BUTTON_R)) {
+			offset = (u32) -1;
+		}
+		
+		// Y - RETURN TO OFFSET
+		if(inputIsPressed(BUTTON_Y) && (hvStoredOffset != (u32) -1)) {
+			offset = hvStoredOffset;
+		}
+		
+		// X - GO TO OFFSET
+		if(inputIsHeld(BUTTON_X) && (inputXHoldTime != (u64) -1)) {
+			if(inputXHoldTime == 0) inputXHoldTime = platformGetTime();
+			else if(platformGetTime() - inputXHoldTime >= tapTime) {
+				std::string confirmMsg = "Enter new decimal offset below:\n";
+				u32 offsetNew = uiNumberInput(TOP_SCREEN, offset, confirmMsg, false);
+				if(offsetNew != (u32) -1) hvStoredOffset = offset = offsetNew;
+				inputXHoldTime = 0;
+			}
+		}
+		if(inputIsReleased(BUTTON_X) && (inputXHoldTime != 0)) {
+			if(inputXHoldTime != (u64) -1) {
+				std::string confirmMsg = "Enter new hexadecimal offset below:\n";
+				u32 offsetNew = uiNumberInput(TOP_SCREEN, offset, confirmMsg, true);
+				if(offsetNew != (u32) -1) hvStoredOffset = offset = offsetNew;
+			}
+			inputXHoldTime = 0;
+		}
+		
+		return breakLoop;
+	};
+	
 	while(platformIsRunning()) {
-		uiFileBrowser( "sdmc:/", currentFile.id,
-			[&](bool &updateList, bool &resetCursor) { // onLoop function
-				return onLoop(updateList, resetCursor);
-			},
-			[&](SelectableElement* entry) { // onUpdateEntry function
-				currentFile = *entry;
-			},
-			[&](std::string* currDir) { // onUpdateDir function
-				currentDir = *currDir;
-			},
-			[&](std::set<SelectableElement*>* marked) { // onUpdateMarked function
-				markedElements = marked;
-			},
-			[&](std::string selectedPath, bool &updateList) { // onSelect function
-				return true;
-			});
+		if(mode == M_HEXVIEWER) {
+			hvStoredOffset = (u32) -1;
+			if(!uiHexViewer(currentFile.id, 0,
+				[&](u32 &offset) { // onLoop function
+					return onLoopHexViewer(offset);
+				})) {
+				uiErrorPrompt(TOP_SCREEN, "Hexview", currentFile.name, true, false);
+			}
+			mode = M_BROWSER;
+		} else {
+			uiFileBrowser( "sdmc:/", currentFile.id,
+				[&](bool &updateList, bool &resetCursor) { // onLoop function
+					return onLoopBrowser(updateList, resetCursor);
+				},
+				[&](SelectableElement* entry) { // onUpdateEntry function
+					currentFile = *entry;
+				},
+				[&](std::string* currDir) { // onUpdateDir function
+					currentDir = *currDir;
+				},
+				[&](std::set<SelectableElement*>* marked) { // onUpdateMarked function
+					markedElements = marked;
+				},
+				[&](std::string selectedPath, bool &updateList) { // onSelect function
+					mode = M_HEXVIEWER;
+					return true;
+				});
+		}
 		
 		if(exit) {
 			break;
-		}
-		// IMPROVE LOGIC!!!
-		if(!uiHexViewer(currentFile.id, 0, 1, NULL)) {
-			uiErrorPrompt(TOP_SCREEN, "Hexview", currentFile.name, true, false);
 		}
 	}
 

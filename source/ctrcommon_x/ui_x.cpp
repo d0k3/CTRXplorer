@@ -224,9 +224,6 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
 
 				gputDrawString(details.str(), 0, gpuGetViewportHeight() - 1 - gputGetStringHeight(details.str(), 8), 8, 8);
 			}
-			
-			gpuFlush();
-			gpuFlushBuffer();
 		}
 
 		bool result = onLoop != NULL && onLoop(elements, elementsDirty, resetCursorIfDirty);
@@ -257,8 +254,14 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
 			if (onUpdateCursor != NULL) onUpdateCursor((selected = &elements.at((u32) cursor)));
 			markedElements.clear();
 		}
+		
+		if(useTopScreen) {
+			gpuFlush();
+			gpuFlushBuffer();
+		}
 
 		gpuSwapBuffers(true);
+		
 		if(result) {
 			break;
 		}
@@ -376,12 +379,14 @@ bool uiFileBrowser(const std::string rootDirectory, const std::string startPath,
 	return result;
 }
 
-bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool(u32 &offset)> onLoop) {
+bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset)> onLoop) {
 	bool result;
 	
-	u32 rows = (BOTTOM_HEIGHT / 8) - 1;
-	u32 cols = ((BOTTOM_WIDTH / 8) - 8) / ((hex) ? 2 : 1);
-	u32 nShown = rows * cols;
+	const u32 cpad = 2;
+	
+	const u32 rows = BOTTOM_HEIGHT / (8 + (2*cpad));
+	const u32 cols = 8;
+	const u32 nShown = rows * cols;
 	
 	u32 fileSize = fsGetFileSize(path);
 	u64 lastScrollTime = 0;
@@ -422,56 +427,52 @@ bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool
 				lastScrollTime = 0;
 			}
 			
-			if((onLoop != NULL) && (onLoop(offset)))
-				return true;
+			if(onLoop != NULL) {
+				if(onLoop(offset)) return true;
+				if(currOffset != offset) {
+					if(offset > maxOffset) offset = maxOffset;
+					currOffset = offset;
+				}
+			}
 			
 			return false;
 		},
 		[&](u8* data) {
+			const u8 gr = 0x9F;
+			
 			gpuViewport(BOTTOM_SCREEN, 0, 0, BOTTOM_WIDTH, BOTTOM_HEIGHT);
 			gputOrtho(0, BOTTOM_WIDTH, 0, BOTTOM_HEIGHT, -1, 1);
 			gpuClear();
 			
-			uiDrawRectangle(0, 0, 8*8, BOTTOM_HEIGHT, 0xFF, 0xFF, 0xFF);
-			uiDrawRectangle(0, BOTTOM_HEIGHT - 8, BOTTOM_WIDTH, 8, 0xFF, 0xFF, 0xFF);
-			
-			std::stringstream index;
-			index << std::hex << std::uppercase;
-			index << std::setfill(' ') << std::setw(8) << "";
-			index << std::setfill('0');
-			for(u32 c = 0; c < cols; c++) {
-				if(hex) index << std::setw(2) << ((currOffset + c)&0xFF);
-				else index << ((currOffset + c)&0xF);
-			}
-			for(u32 r = 0; r < rows; r++) {
-				index << "\n" << std::setw(8) << (currOffset + (r * cols));
-			}
-			
-			std::stringstream viewer;
-			if(hex) {
-				viewer << std::hex << std::setfill('0') << std::uppercase;
-			}
 			for(u32 pos = 0; pos < nShown; ) {
-				viewer << "\n";
-				do {
-					if(currOffset + pos < fileSize) {
-						if(hex) {
-							viewer << std::setw(2) << (u32) data[pos];
-						} else {
-							char symbol = data[pos];
-							if((symbol == 0x00) || (symbol == 0x0A) || (symbol == 0x0D)) symbol = 0x00;
-							viewer << (char) symbol;
+				u32 vDrawPos = BOTTOM_HEIGHT - (((u32) (pos / cols) + 1) * (8 + (2*cpad))) + cpad;
+				
+				std::stringstream ssIndex;
+				ssIndex << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << (currOffset + pos);
+				gputDrawString(ssIndex.str(), 0, vDrawPos, 8, 8, gr, gr, gr);
+				
+				if(currOffset + pos < fileSize) {
+					std::stringstream ssAscii;
+					std::stringstream ssHex;
+					ssHex << std::hex << std::uppercase << std::setfill('0');
+					do {
+						if(currOffset + pos < fileSize) {
+							u32 hDrawPos = 64 + (32 - (cols * cpad)) + ((pos % cols) * 2 * (8 + cpad)) + cpad;
+							u8 symbol = data[pos];
+							ssHex << std::setw(2) << (u32) symbol;
+							gputDrawString(ssHex.str(), hDrawPos, vDrawPos, 8, 8);
+							ssHex.str("");
+							ssAscii << (((symbol != 0x00) && (symbol != 0x0A) && (symbol != 0x0D)) ? (char) symbol : (char) ' ');
 						}
-					}
-					pos++;
-				} while(pos % cols);
+						pos++;
+					} while(pos % cols);
+					gputDrawString(ssAscii.str(), BOTTOM_WIDTH - (cols*8), vDrawPos, 8, 8, gr, gr, gr);
+				} else pos += cols;
 			}
-			
-			gputDrawString(index.str(), 0, 0, 8, 8, 0x00, 0x00, 0x00);
-			gputDrawString(viewer.str(), 8*8, 0, 8, 8);
 			
 			gpuFlush();
 			gpuFlushBuffer();
+			
 			gpuSwapBuffers(true);
 			
 			return false;
@@ -624,7 +625,7 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 			}
 		} else if(inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
 			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= scrollTime) {
-				if(inputIsHeld(BUTTON_LEFT) && cursor_s > 0) {
+				if(inputIsHeld(BUTTON_LEFT) && (cursor_s > 0)) {
 					if((cursor_s == (int) resultStr.size() - 1) && (resultStr.at(cursor_s) == ' '))
 						resultStr.resize(cursor_s);
 					cursor_s--;
@@ -634,11 +635,11 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 				
 				if(inputIsHeld(BUTTON_RIGHT)) {
 					cursor_s++;
-					if(scroll + dispSize <= cursor_s) scroll = cursor_s - dispSize + 1;
 					if(cursor_s == (int) resultStr.size()) {
 						resultStr.append(alphabet.substr(0, 1));
 						cursor_a = 0;
 					} else cursor_a = -1;
+					if(scroll + dispSize <= cursor_s) scroll = cursor_s - dispSize + 1;
 				}
 				
 				lastScrollTime = platformGetTime();
@@ -659,4 +660,22 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 	inputPoll();
 	
 	return resultStr;
+}
+
+u32 uiNumberInput(Screen screen, u32 preset, const std::string message, bool hex) {
+	std::string resultStr;
+	u32 result;
+	
+	std::stringstream input;
+	if(!hex) input << preset;
+	else input << std::setfill('0') << std::uppercase << std::hex << std::setw(8) << preset;
+	
+	resultStr = uiStringInput(screen, input.str(), (hex) ? "0123456789ABCDEF" : "0123456789", message);
+	if(resultStr.empty()) return (u32) -1;
+	
+	std::istringstream output(resultStr);
+	if(!hex) output >> result;
+	else output >> std::hex >> result;
+	
+	return result;
 }
