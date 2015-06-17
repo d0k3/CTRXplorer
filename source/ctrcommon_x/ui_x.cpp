@@ -22,11 +22,8 @@ struct uiAlphabetize {
 	}
 };
 
-void uiDrawRectangleCrude(int x, int y, u32 width, u32 height, u8 red, u8 green, u8 blue, u8 alpha) {
-	// very crude, and works only with rectangles >= 8 in height
-	gputDrawString(std::string(1, 0xDB), x, y, width, 8, red, green, blue, alpha);
-	if(height > 8) for(u32 v = height % 8; v < height; v += 8)
-		gputDrawString(std::string(1, 0xDB), x, y + v, width, 8, red, green, blue, alpha);
+void uiDrawRectangle(int x, int y, u32 width, u32 height, u8 red, u8 green, u8 blue, u8 alpha) {
+	gputDrawString(std::string(1, 0xDB), x, y, width, height, red, green, blue, alpha);
 }
 
 std::string uiTruncateString(const std::string str, int nsize, int pos) {
@@ -90,10 +87,10 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
 		inputPoll();
 		
 		if(inputIsPressed(BUTTON_A)) {
-            if(onSelect == NULL || onSelect(selected)) {
-                return true;
-            }
-        }
+			if(onSelect == NULL || onSelect(selected)) {
+				return true;
+			}
+		}
 		
 		if(inputIsPressed(BUTTON_L)) {
 			std::pair <std::set<SelectableElement*>::iterator,bool> inserted = markedElements.insert(selected);
@@ -192,7 +189,7 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
 			float itemHeight = gputGetStringHeight(name, 8) + 4;
 			if(index == cursor) {
 				cl = 0x00;
-				uiDrawRectangleCrude(0, (screenHeight - 1) - ((index - scroll + 1) * itemHeight), screenWidth, itemHeight);
+				uiDrawRectangle(0, (screenHeight - 1) - ((index - scroll + 1) * itemHeight), screenWidth, itemHeight);
 				u32 width = (u32) gputGetStringWidth(name, 8);
 				if(width > screenWidth) {
 					if(selectionScrollEndTime == 0) {
@@ -401,7 +398,7 @@ bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool
 
 			if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP) || inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
 				if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= 120) {
-					if(inputIsHeld(BUTTON_DOWN) && (offset + nShown <= fileSize)) {
+					if(inputIsHeld(BUTTON_DOWN) && (offset + nShown < fileSize)) {
 						offset += cols;
 					}
 					if(inputIsHeld(BUTTON_UP) && (offset >= cols)) {
@@ -410,9 +407,9 @@ bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool
 					if(inputIsHeld(BUTTON_LEFT)) {
 						offset = (offset > nShown) ? offset - nShown : 0;
 					}
-					if(inputIsHeld(BUTTON_RIGHT)&&(fileSize > nShown)) {
+					if(inputIsHeld(BUTTON_RIGHT) && (offset + nShown < fileSize)) {
 						offset += nShown;
-						if(offset + nShown > fileSize) {
+						if(offset + nShown > fileSize) { // BAD!!!
 							offset = fileSize + (cols - (fileSize % cols)) - nShown;
 						}
 					}
@@ -433,8 +430,8 @@ bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool
 			gputOrtho(0, BOTTOM_WIDTH, 0, BOTTOM_HEIGHT, -1, 1);
 			gpuClear();
 			
-			uiDrawRectangleCrude(0, 0, 8*8, BOTTOM_HEIGHT, 0xFF, 0xFF, 0xFF);
-			uiDrawRectangleCrude(0, BOTTOM_HEIGHT - 8, BOTTOM_WIDTH, 8, 0xFF, 0xFF, 0xFF);
+			uiDrawRectangle(0, 0, 8*8, BOTTOM_HEIGHT, 0xFF, 0xFF, 0xFF);
+			uiDrawRectangle(0, BOTTOM_HEIGHT - 8, BOTTOM_WIDTH, 8, 0xFF, 0xFF, 0xFF);
 			
 			std::stringstream index;
 			index << std::hex << std::uppercase;

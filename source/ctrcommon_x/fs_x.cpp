@@ -88,7 +88,7 @@ bool fsProvideData(const std::string path, u32 offset, u32 buffSize, std::functi
 				if(overlap) memmove(buffer, bufferEnd - overlap, overlap);
 				fseek(fp, offset + overlap, SEEK_SET);
 				fread(buffer + overlap, 1, buffSize - overlap, fp);
-				/*if(dataEnd > fileSize) {
+				/*if(dataEnd > fileSize) { // BUGGY!
 					u32 zeroAdd = (offset + overlap > dataEnd - fileSize) ?
 						offset + overlap : dataEnd - fileSize;
 					memset(bufferEnd - zeroAdd, 0x00, buffSize - zeroAdd);

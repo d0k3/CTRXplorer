@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
 		u8 gr = 0x9F;
 		
 		// TOP BAR -> CURRENT DIRECTORY & FREE SPACE
-		uiDrawRectangleCrude(0, (screenHeight - 1) - 12, screenWidth, 12);
+		uiDrawRectangle(0, (screenHeight - 1) - 12, screenWidth, 12);
 		str = uiTruncateString(currentDir, 36, 0); // current directory
 		gputDrawString(str, 0, (screenHeight - 1) - 10, 8, 8, 0x00, 0x00, 0x00);
 		str = uiFormatBytes(freeSpace) + " free"; // free space
@@ -394,7 +394,7 @@ int main(int argc, char **argv) {
 		if(exit) {
 			break;
 		}
-		
+		// IMPROVE LOGIC!!!
 		if(!uiHexViewer(currentFile.id, 0, 1, NULL)) {
 			uiErrorPrompt(TOP_SCREEN, "Hexview", currentFile.name, true, false);
 		}
