@@ -458,7 +458,9 @@ bool uiHexViewer(const std::string path, u32 start, bool hex, std::function<bool
 						if(hex) {
 							viewer << std::setw(2) << (u32) data[pos];
 						} else {
-							viewer << (char) data[pos];
+							char symbol = data[pos];
+							if((symbol == 0x00) || (symbol == 0x0A) || (symbol == 0x0D)) symbol = 0x00;
+							viewer << (char) symbol;
 						}
 					}
 					pos++;
