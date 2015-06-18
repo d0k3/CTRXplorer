@@ -210,10 +210,10 @@ int main(int argc, char **argv) {
 		std::stringstream stream;
 		stream << std::setfill('0');
 		stream << "L/R - Move to beginning / end" << "\n";
-		stream << "X - Go to ... in [t] hex / [h] dec" << "\n";
+		stream << "X - Go to ... ([t] hex / [h] dec)" << "\n";
 		if(hvStoredOffset != (u32) -1) {
-			stream << "Y - Return to " << "0x" << std::hex << std::uppercase << std::setw(8) << hvStoredOffset;
-			stream  << std::nouppercase << " (" << std::dec << hvStoredOffset << ")" << "\n";
+			stream << "Y - Return to offset ";
+			stream << std::hex << std::uppercase << std::setw(8) << hvStoredOffset << std::nouppercase << "\n";
 		}
 		stream << "B - Exit to file browser" << "\n";
 		
@@ -447,9 +447,17 @@ int main(int argc, char **argv) {
 	while(platformIsRunning()) {
 		if(mode == M_HEXVIEWER) {
 			hvStoredOffset = (u32) -1;
+			currentFile.details.insert(currentFile.details.begin(), "@FFFFFFFF (-1)");
 			if(!uiHexViewer(currentFile.id, 0,
 				[&](u32 &offset) { // onLoop function
 					return onLoopHexViewer(offset);
+				},
+				[&](u32 offset) { // onUpdate function
+					std::stringstream ssOffset;
+					ssOffset << "@" << std::setfill('0') << std::uppercase;
+					ssOffset << std::hex << std::setw(8) << offset << " (" << std::dec << offset << ")";
+					currentFile.details.at(0) = ssOffset.str();
+					return false;
 				})) {
 				uiErrorPrompt(TOP_SCREEN, "Hexview", currentFile.name, true, false);
 			}

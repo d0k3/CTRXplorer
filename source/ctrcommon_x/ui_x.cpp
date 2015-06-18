@@ -379,7 +379,7 @@ bool uiFileBrowser(const std::string rootDirectory, const std::string startPath,
 	return result;
 }
 
-bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset)> onLoop) {
+bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset)> onLoop, std::function<bool(u32 offset)> onUpdate) {
 	bool result;
 	
 	const u32 cpad = 2;
@@ -435,6 +435,8 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
 				}
 			}
 			
+			gpuSwapBuffers(true);
+			
 			return false;
 		},
 		[&](u8* data) {
@@ -471,9 +473,14 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
 			}
 			
 			gpuFlush();
-			gpuFlushBuffer();
+			for(int b = 0; b < 2; b++) { // fill both buffers
+				gpuFlushBuffer();
+				gpuSwapBuffers(true);
+			}
 			
-			gpuSwapBuffers(true);
+			if((onUpdate != NULL) && onUpdate(currOffset)) {
+				return true;
+			}
 			
 			return false;
 		});
