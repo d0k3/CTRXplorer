@@ -25,14 +25,14 @@ typedef enum  {
 } Action;
 
 int main(int argc, char **argv) {
-	if(!platformInit()) {
+	if(!platformInit(argc)) {
 		return 0;
 	}
 	
 	const std::string title = "CTRX SD Explorer v0.8.5";
-	const u64 tapTime = 240;
+	const u64 tapDelay = 240;
 
-	bool ninjhax = platformIsNinjhax();
+	bool launcher = platformHasLauncher();
 	bool exit = false;
 	
 	Mode mode = M_BROWSER;
@@ -279,7 +279,7 @@ int main(int argc, char **argv) {
 		
 		// INSTRUCTIONS BLOCK
 		str = title + "\n" + ((mode == M_BROWSER) ? instructionBlockBrowser() : instructionBlockHexViewer());
-		if(ninjhax) str += "START - Exit to launcher\n";
+		if(launcher) str += "START - Exit to launcher\n";
 		gputDrawString(str, (screenWidth - 320) / 2, 4, 8, 8);
 		
 		gpuFlush();
@@ -289,13 +289,12 @@ int main(int argc, char **argv) {
 	};
 	
 	auto onLoopBrowser = [&](bool &updateList, bool &resetCursor) {
-		const u64 scrollTime = 120;
 		bool breakLoop = false;
 		
 		onLoopDisplay();
 		
 		// START - EXIT TO HB LAUNCHER
-		if(inputIsPressed(BUTTON_START) && ninjhax) {
+		if(inputIsPressed(BUTTON_START) && launcher) {
 			exit = true;
 			return true;
 		}
@@ -308,13 +307,14 @@ int main(int argc, char **argv) {
 		// R - (TAP) CREATE DIRECTORY / (HOLD) GENERATE DUMMY FILE
 		if(inputIsHeld(BUTTON_R) && (inputRHoldTime != (u64) -1)) {
 			if(inputRHoldTime == 0) inputRHoldTime = platformGetTime();
-			else if(platformGetTime() - inputRHoldTime >= tapTime) {
+			else if(platformGetTime() - inputRHoldTime >= tapDelay) {
+				const u64 scrollDelay = 120;
 				u64 lastChangeTime = 0;
 				dummySize = 0;
 				dummyContent = 0x00;
 				while(platformIsRunning() && inputIsHeld(BUTTON_R)) {
 					if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP) || inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
-						if(lastChangeTime == 0 || platformGetTime() - lastChangeTime >= scrollTime) {
+						if(lastChangeTime == 0 || platformGetTime() - lastChangeTime >= scrollDelay) {
 							if(inputIsHeld(BUTTON_DOWN)) {
 								dummyContent--;
 								if(dummyContent < 0x00) dummyContent = 0x100;
@@ -361,7 +361,7 @@ int main(int argc, char **argv) {
 		}  else {
 			if(inputIsHeld(BUTTON_Y) && (inputYHoldTime != (u64) -1)) {
 				if(inputYHoldTime == 0) inputYHoldTime = platformGetTime();
-				else if(platformGetTime() - inputYHoldTime >= tapTime) {
+				else if(platformGetTime() - inputYHoldTime >= tapDelay) {
 					processAction(A_MOVE, updateList, resetCursor);
 					inputYHoldTime = 0;
 				}
@@ -377,7 +377,7 @@ int main(int argc, char **argv) {
 		// X - (TAP) DELETE / (HOLD) RENAME
 		if(inputIsHeld(BUTTON_X) && (inputXHoldTime != (u64) -1)) {
 			if(inputXHoldTime == 0) inputXHoldTime = platformGetTime();
-			else if(platformGetTime() - inputXHoldTime >= tapTime) {
+			else if(platformGetTime() - inputXHoldTime >= tapDelay) {
 				if(currentFile.name.compare("..") != 0) {
 					processAction(A_RENAME, updateList, resetCursor);
 					inputXHoldTime = 0;
@@ -402,7 +402,7 @@ int main(int argc, char **argv) {
 		onLoopDisplay();
 		
 		// START - EXIT TO HB LAUNCHER
-		if(inputIsPressed(BUTTON_START) && ninjhax) {
+		if(inputIsPressed(BUTTON_START) && launcher) {
 			exit = true;
 			return true;
 		}
@@ -425,7 +425,7 @@ int main(int argc, char **argv) {
 		// X - GO TO OFFSET
 		if(inputIsHeld(BUTTON_X) && (inputXHoldTime != (u64) -1)) {
 			if(inputXHoldTime == 0) inputXHoldTime = platformGetTime();
-			else if(platformGetTime() - inputXHoldTime >= tapTime) {
+			else if(platformGetTime() - inputXHoldTime >= tapDelay) {
 				std::string confirmMsg = "Enter new decimal offset below:\n";
 				u32 offsetNew = uiNumberInput(TOP_SCREEN, offset, confirmMsg, false);
 				if(offsetNew != (u32) -1) hvStoredOffset = offset = offsetNew;

@@ -14,7 +14,6 @@ typedef struct {
 } FileInfoEx;
 
 u32 fsGetFileSize(const std::string path);
-std::string fsGetName(const std::string path);
 bool fsProvideData(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset)> onLoop, std::function<bool(u8* data)> onUpdate);
 bool fsPathDelete(const std::string path);
 bool fsPathCopy(const std::string path, const std::string dest, bool showProgress = false);

@@ -380,13 +380,13 @@ bool uiFileBrowser(const std::string rootDirectory, const std::string startPath,
 }
 
 bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset)> onLoop, std::function<bool(u32 offset)> onUpdate) {
-	bool result;
-	
 	const u32 cpad = 2;
 	
 	const u32 rows = BOTTOM_HEIGHT / (8 + (2*cpad));
 	const u32 cols = 8;
 	const u32 nShown = rows * cols;
+	
+	bool result;
 	
 	u32 fileSize = fsGetFileSize(path);
 	u64 lastScrollTime = 0;
@@ -530,8 +530,8 @@ bool uiErrorPrompt(Screen screen, const std::string operationStr, const std::str
 
 std::string uiStringInput(Screen screen, std::string preset, const std::string alphabet, const std::string message) {
 	const int dispSize = 30;
-	const u64 tapTime = 360;
-	const u64 scrollTime = 120;
+	const u64 tapDelay = 360;
+	const u64 scrollDelay = 120;
 	
 	u64 inputXHoldTime = 0;
 	u64 inputYHoldTime = 0;
@@ -575,7 +575,7 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 		
 		if(inputIsHeld(BUTTON_X) && (inputXHoldTime != (u64) -1)) {
 			if(inputXHoldTime == 0) inputXHoldTime = platformGetTime();
-			else if(platformGetTime() - inputXHoldTime >= tapTime) {
+			else if(platformGetTime() - inputXHoldTime >= tapDelay) {
 				resultStr = alphabet.substr(0, 1);
 				cursor_s = 0;
 				cursor_a = 0;
@@ -594,7 +594,7 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 		
 		if(inputIsHeld(BUTTON_Y) && (inputYHoldTime != (u64) -1)) {
 			if(inputYHoldTime == 0) inputYHoldTime = platformGetTime();
-			else if(platformGetTime() - inputYHoldTime >= tapTime) {
+			else if(platformGetTime() - inputYHoldTime >= tapDelay) {
 				resultStr = (preset.empty()) ? alphabet.substr(0,1) : preset;
 				cursor_s = 0;
 				cursor_a = -1;
@@ -611,7 +611,7 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 		}
 		
 		if(inputIsHeld(BUTTON_DOWN) || inputIsHeld(BUTTON_UP)) {
-			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= scrollTime) {
+			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= scrollDelay) {
 				if(cursor_a < 0) {
 					cursor_a = alphabet.find(resultStr.substr(cursor_s, 1));
 					if (cursor_a < 0) cursor_a = 0;
@@ -631,7 +631,7 @@ std::string uiStringInput(Screen screen, std::string preset, const std::string a
 				lastScrollTime = platformGetTime();
 			}
 		} else if(inputIsHeld(BUTTON_LEFT) || inputIsHeld(BUTTON_RIGHT)) {
-			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= scrollTime) {
+			if(lastScrollTime == 0 || platformGetTime() - lastScrollTime >= scrollDelay) {
 				if(inputIsHeld(BUTTON_LEFT) && (cursor_s > 0)) {
 					if((cursor_s == (int) resultStr.size() - 1) && (resultStr.at(cursor_s) == ' '))
 						resultStr.resize(cursor_s);
