@@ -1,5 +1,5 @@
-#include "fs_x.hpp"
-#include "ui_x.hpp"
+#include "fs.hpp"
+#include "ui.hpp"
 
 #include <citrus/core.hpp>
 #include <citrus/hid.hpp>

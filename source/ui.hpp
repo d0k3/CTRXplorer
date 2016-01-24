@@ -1,5 +1,5 @@
-#ifndef __CTRCOMMON_UI_X_HPP__
-#define __CTRCOMMON_UI_X_HPP__
+#ifndef __CTRX_UI_HPP__
+#define __CTRX_UI_HPP__
 
 #include <citrus/gpu.hpp>
 #include <citrus/types.hpp>

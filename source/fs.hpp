@@ -1,5 +1,5 @@
-#ifndef __CTRCOMMON_FS_X_HPP__
-#define __CTRCOMMON_FS_X_HPP__
+#ifndef __CTRX_FS_HPP__
+#define __CTRX_FS_HPP__
 
 #include <citrus/types.hpp>
 
