@@ -13,9 +13,9 @@ typedef struct {
 } FileInfo;
 
 typedef struct {
-	std::string path;
-	std::string name;
-	bool isDirectory;
+    std::string path;
+    std::string name;
+    bool isDirectory;
 } FileInfoEx;
 
 u64 fsGetFreeSpace();
