@@ -1,11 +1,16 @@
 #ifndef __CTRCOMMON_FS_X_HPP__
 #define __CTRCOMMON_FS_X_HPP__
 
-#include <ctrcommon/types.hpp>
+#include <citrus/types.hpp>
 
 #include <functional>
 #include <string>
 #include <vector>
+
+typedef struct {
+    const std::string path;
+    const std::string name;
+} FileInfo;
 
 typedef struct {
 	std::string path;
@@ -13,6 +18,13 @@ typedef struct {
 	bool isDirectory;
 } FileInfoEx;
 
+u64 fsGetFreeSpace();
+bool fsExists(const std::string path);
+bool fsIsDirectory(const std::string path);
+std::string fsGetFileName(const std::string path);
+std::string fsGetExtension(const std::string path);
+bool fsHasExtension(const std::string path, const std::string extension);
+bool fsHasExtensions(const std::string path, const std::vector<std::string> extensions);
 u32 fsGetFileSize(const std::string path);
 bool fsProvideData(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset)> onLoop, std::function<bool(u8* data)> onUpdate);
 bool fsPathDelete(const std::string path);
@@ -20,6 +32,7 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
 bool fsPathRename(const std::string path, const std::string dest);
 bool fsCreateDir(const std::string path);
 bool fsCreateDummyFile(const std::string path, u64 size = 0, u16 content = 0x0000, bool showProgress = false);
+std::vector<FileInfo> fsGetDirectoryContents(const std::string directory);
 std::vector<FileInfoEx> fsGetDirectoryContentsEx(const std::string directory);
 
 #endif
