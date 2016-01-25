@@ -191,20 +191,26 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
         errno = EEXIST;
         return false;
     }
-    if(showProgress) fsShowProgress("Copying", path, 0, 1);
+    if(showProgress && !fsShowProgress("Copying", path, 0, 1)) {
+        errno = ECANCELED;
+        return false;
+    }
     if(fsIsDirectory(path)) {
         if(dest.find(path + "/") != std::string::npos) {
             errno = ENOTSUP;
             return false;
         }
         if(mkdir(dest.c_str(), 0777) != 0) return false;
-        if(showProgress) fsShowProgress("Copying", path, 1, 2);
+        if(showProgress && !fsShowProgress("Copying", path, 1, 2)) {
+            errno = ECANCELED;
+            return false;
+        }
         std::vector<FileInfo> contents = fsGetDirectoryContents(path);
         for (std::vector<FileInfo>::iterator it = contents.begin(); it != contents.end(); it++)
             if (!fsPathCopy((*it).path, dest + "/" + (*it).name, showProgress)) return false;
         return true;
     } else {
-        bool ret = false;
+        bool ret = true;
         u64 total = fsGetFileSize(path);
         size_t l_bufsiz = (total < CTRX_BUFSIZ) ? total : CTRX_BUFSIZ;
         u8* buffer = (u8*) malloc( l_bufsiz );
@@ -217,10 +223,11 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
                 pos += fwrite(buffer, 1, size, fd);
                 if(showProgress && !fsShowProgress("Copying", path, pos, total)) {
                     errno = ECANCELED;
+                    ret = false;
                     break;
                 }
             }
-            ret = (pos == total);
+            ret = ret && (pos == total);
         }
         if(buffer != NULL) free(buffer);
         if(fp != NULL) fclose(fp);
