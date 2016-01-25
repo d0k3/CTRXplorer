@@ -27,12 +27,6 @@ struct fsAlphabetizeFoldersFiles {
     }
 };
 
-u64 fsGetFreeSpace() {
-    FS_ArchiveResource resource;
-    Result res = FSUSER_GetSdmcArchiveResource(&resource);
-    return (res != 0) ? 0 : (u64) resource.clusterSize * (u64) resource.freeClusters;
-}
-
 bool fsShowProgress(const std::string operationStr, const std::string pathStr, u64 pos, u64 totalSize) {
     static u32 prevProgress = -1;
     u32 progress = (u32) ((pos * 100) / totalSize);
@@ -43,6 +37,12 @@ bool fsShowProgress(const std::string operationStr, const std::string pathStr, u
     
     hid::poll();
     return !hid::pressed(hid::BUTTON_B);
+}
+
+u64 fsGetFreeSpace() {
+    FS_ArchiveResource resource;
+    Result res = FSUSER_GetSdmcArchiveResource(&resource);
+    return (res != 0) ? 0 : (u64) resource.clusterSize * (u64) resource.freeClusters;
 }
 
 bool fsExists(const std::string path) {
@@ -191,18 +191,19 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
         errno = EEXIST;
         return false;
     }
+    if(showProgress) fsShowProgress("Copying", path, 0, 1);
     if(fsIsDirectory(path)) {
         if(dest.find(path + "/") != std::string::npos) {
             errno = ENOTSUP;
             return false;
         }
         if(mkdir(dest.c_str(), 0777) != 0) return false;
+        if(showProgress) fsShowProgress("Copying", path, 1, 2);
         std::vector<FileInfo> contents = fsGetDirectoryContents(path);
         for (std::vector<FileInfo>::iterator it = contents.begin(); it != contents.end(); it++)
             if (!fsPathCopy((*it).path, dest + "/" + (*it).name, showProgress)) return false;
         return true;
     } else {
-        if(showProgress) fsShowProgress("Copying", path, 0, 1);
         bool ret = false;
         u64 total = fsGetFileSize(path);
         size_t l_bufsiz = (total < CTRX_BUFSIZ) ? total : CTRX_BUFSIZ;
@@ -297,7 +298,6 @@ std::vector<FileInfo> fsGetDirectoryContents(const std::string directory) {
         if(ent == NULL) {
             break;
         }
-
         result.push_back({dirWithSlash + std::string(ent->d_name), std::string(ent->d_name)});
     }
 
