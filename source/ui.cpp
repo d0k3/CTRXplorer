@@ -66,6 +66,25 @@ void uiDrawRectangle(int x, int y, u32 width, u32 height, u8 red, u8 green, u8 b
     gput::drawString(std::string(1, 0xDB), x, y, width, height, red, green, blue, alpha);
 }
 
+void uiDrawPositionBar(int pos, int nShown, int total) {
+    const u32 barMinHeight = 32;
+    const u32 barWidth = 2;
+    const u8 gr = 0x4F;
+    
+    if ((pos > total) || (nShown > total)) return;
+    
+    u32 screenWidth;
+    u32 screenHeight;
+    gpu::getViewportWidth(&screenWidth);
+    gpu::getViewportHeight(&screenHeight);
+    
+    u32 barHeight = (nShown * screenHeight) / total;
+    if (barHeight < barMinHeight) barHeight = barMinHeight;
+    u32 barPos = (screenHeight - barHeight) - ((pos * (screenHeight - barHeight)) / (total - nShown));
+    
+    uiDrawRectangle(screenWidth - barWidth, barPos, barWidth, barHeight, gr, gr, gr);
+}
+
 std::string uiTruncateString(const std::string str, int nsize, int pos) {
     int osize = str.size();
     if (pos < 0) pos = nsize + 1 + pos - 3;
@@ -218,6 +237,8 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
         gput::setOrtho(0, gpu::BOTTOM_WIDTH, 0, gpu::BOTTOM_HEIGHT, -1, 1);
         gpu::clear();
 
+        uiDrawPositionBar(scroll, 20, elements.size());
+        
         u32 screenWidth;
         u32 screenHeight;
         gpu::getViewportWidth(&screenWidth);
@@ -487,6 +508,8 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
             gpu::setViewport(gpu::SCREEN_BOTTOM, 0, 0, gpu::BOTTOM_WIDTH, gpu::BOTTOM_HEIGHT);
             gput::setOrtho(0, gpu::BOTTOM_WIDTH, 0, gpu::BOTTOM_HEIGHT, -1, 1);
             gpu::clear();
+            
+            uiDrawPositionBar(currOffset, nShown, fileSize);
             
             for(u32 pos = 0; pos < nShown; ) {
                 u32 vDrawPos = gpu::BOTTOM_HEIGHT - (((u32) (pos / cols) + 1) * (8 + (2*cpad))) + cpad;
