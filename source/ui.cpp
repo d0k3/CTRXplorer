@@ -128,6 +128,8 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
     u64 selectionScrollEndTime = 0;
 
     u64 lastScrollTime = 0;
+    
+    bool lastMarkedStatus = false;
 
     bool elementsDirty = false;
     bool resetCursorIfDirty = true;
@@ -154,6 +156,7 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
         if(hid::pressed(hid::BUTTON_L)) {
             std::pair <std::set<SelectableElement*>::iterator,bool> inserted = markedElements.insert(selected);
             if(!inserted.second) markedElements.erase(inserted.first);
+            lastMarkedStatus = inserted.second;
             selectionScroll = 0;
             selectionScrollEndTime = core::time() - 3000;
             if(onUpdateMarked != NULL) onUpdateMarked(&markedElements);
@@ -213,13 +216,15 @@ bool uiSelectMultiple(const std::string startId, std::vector<SelectableElement> 
                 if(hid::held(hid::BUTTON_L)) {
                     if(hid::held(hid::BUTTON_LEFT)) {
                         markedElements.clear();
+                        lastMarkedStatus = false;
                     } else if(hid::held(hid::BUTTON_RIGHT)) {
                         std::set<SelectableElement*>::iterator hint = markedElements.begin();
                         for(std::vector<SelectableElement>::iterator it = elements.begin(); it != elements.end(); it++)
                             hint = markedElements.insert(hint, &(*it));
+                        lastMarkedStatus = true;
                     } else if(cursor != lastCursor) {
                         std::pair <std::set<SelectableElement*>::iterator,bool> inserted = markedElements.insert(selected);
-                        if(!inserted.second) markedElements.erase(inserted.first);
+                        if(!lastMarkedStatus) markedElements.erase(inserted.first);
                     }                    
                     if(onUpdateMarked != NULL) onUpdateMarked(&markedElements);
                 }
