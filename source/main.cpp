@@ -211,7 +211,8 @@ int main(int argc, char **argv) {
     auto instructionBlockHexViewer = [&]() {
         std::stringstream stream;
         stream << std::setfill('0');
-        stream << "L/R - Move to beginning / end" << "\n";
+        stream << "L - Move to beginning / end" << "\n";
+        stream << "R - [h] (" << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") fast scroll" << "\n";
         stream << "X - Go to ... ([t] hex / [h] dec)" << "\n";
         if(hvStoredOffset != (u32) -1) {
             stream << "Y - Return to offset ";
@@ -411,14 +412,9 @@ int main(int argc, char **argv) {
             return true;
         }
         
-        // L - GO TO FILE BEGIN
+        // L - GO TO FILE BEGIN/END
         if(hid::pressed(hid::BUTTON_L)) {
-            offset = 0;
-        }
-        
-        // R - GO TO FILE END
-        if(hid::pressed(hid::BUTTON_R)) {
-            offset = (u32) -1;
+            offset = (offset) ? 0 : (u32) -1;
         }
         
         // Y - RETURN TO OFFSET

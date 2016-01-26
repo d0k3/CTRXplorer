@@ -454,6 +454,8 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
     const u32 cols = 8;
     const u32 nShown = rows * cols;
     
+    const u32 fastMult = 16;
+    
     bool result;
     
     u32 fileSize = fsGetFileSize(path);
@@ -472,22 +474,21 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                 return true;
             }
 
-            if(hid::held(hid::BUTTON_DOWN) || hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_LEFT) || hid::held(hid::BUTTON_RIGHT)) {
+            if(hid::held(hid::BUTTON_DOWN) || hid::held(hid::BUTTON_RIGHT)) {
                 if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
-                    if(hid::held(hid::BUTTON_DOWN) && (offset < maxOffset)) {
-                        offset += cols;
-                    }
-                    if(hid::held(hid::BUTTON_UP) && (offset > 0)) {
-                        offset -= cols;
-                    }
-                    if(hid::held(hid::BUTTON_LEFT)) {
-                        if(offset > nShown) offset -= nShown;
-                        else offset = 0;
-                    }
-                    if(hid::held(hid::BUTTON_RIGHT)) {
-                        offset += nShown;
-                        if(offset > maxOffset) offset = maxOffset;
-                    }
+                    offset += (hid::held(hid::BUTTON_R)) ?
+                        (hid::held(hid::BUTTON_RIGHT) ? fastMult * fastMult * nShown : fastMult * nShown) :
+                        (hid::held(hid::BUTTON_RIGHT) ? nShown : cols);
+                    if(offset > maxOffset) offset = maxOffset;
+                    currOffset = offset;
+                    lastScrollTime = core::time();
+                }
+            } else if(hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_LEFT)) {
+                if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
+                    u32 sub = (hid::held(hid::BUTTON_R)) ?
+                        (hid::held(hid::BUTTON_LEFT) ? fastMult * fastMult * nShown : fastMult * nShown) :
+                        (hid::held(hid::BUTTON_LEFT) ? nShown : cols);
+                    offset = (offset > sub) ? offset - sub : 0;
                     currOffset = offset;
                     lastScrollTime = core::time();
                 }
