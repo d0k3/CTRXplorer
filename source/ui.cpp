@@ -66,7 +66,7 @@ void uiDrawRectangle(int x, int y, u32 width, u32 height, u8 red, u8 green, u8 b
     gput::drawString(std::string(1, 0xDB), x, y, width, height, red, green, blue, alpha);
 }
 
-void uiDrawPositionBar(int pos, int nShown, int total) {
+void uiDrawPositionBar(u32 pos, u32 nShown, u32 total) {
     const u32 barMinHeight = 32;
     const u32 barWidth = 2;
     const u8 gr = 0x4F;
@@ -80,7 +80,7 @@ void uiDrawPositionBar(int pos, int nShown, int total) {
     
     u32 barHeight = (nShown * screenHeight) / total;
     if (barHeight < barMinHeight) barHeight = barMinHeight;
-    u32 barPos = (screenHeight - barHeight) - ((pos * (screenHeight - barHeight)) / (total - nShown));
+    u32 barPos = (screenHeight - barHeight) - (((u64) pos * (screenHeight - barHeight)) / (total - nShown));
     
     uiDrawRectangle(screenWidth - barWidth, barPos, barWidth, barHeight, gr, gr, gr);
 }
