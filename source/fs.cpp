@@ -114,7 +114,7 @@ u32 fsGetFileSize(const std::string path) {
     return (u32) st.st_size;
 }
 
-bool fsProvideData(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset)> onLoop, std::function<bool(u8* data)> onUpdate) {
+bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset)> onLoop, std::function<bool(u8* data)> onUpdate) {
     if((onLoop == NULL) || (onUpdate == NULL)) {
         errno = ENOTSUP;
         return false;

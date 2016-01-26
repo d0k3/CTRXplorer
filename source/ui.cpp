@@ -466,7 +466,7 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
         ((fileSize % cols) ? fileSize + (cols - (fileSize % cols)) - nShown : fileSize - nShown);
     
     
-    result = fsProvideData(path, start, nShown,
+    result = fsDataProvider(path, start, nShown,
         [&](u32 &offset) {
             hid::poll();
             
