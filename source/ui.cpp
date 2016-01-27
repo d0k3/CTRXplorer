@@ -481,7 +481,7 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
 
             if(hid::held(hid::BUTTON_DOWN) || hid::held(hid::BUTTON_RIGHT)) {
                 if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
-                    offset += (hid::held(hid::BUTTON_R)) ?
+                    offset += (hid::held(hid::BUTTON_L)) ?
                         (hid::held(hid::BUTTON_RIGHT) ? fastMult * fastMult * nShown : fastMult * nShown) :
                         (hid::held(hid::BUTTON_RIGHT) ? nShown : cols);
                     if(offset > maxOffset) offset = maxOffset;
@@ -490,7 +490,7 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                 }
             } else if(hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_LEFT)) {
                 if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
-                    u32 sub = (hid::held(hid::BUTTON_R)) ?
+                    u32 sub = (hid::held(hid::BUTTON_L)) ?
                         (hid::held(hid::BUTTON_LEFT) ? fastMult * fastMult * nShown : fastMult * nShown) :
                         (hid::held(hid::BUTTON_LEFT) ? nShown : cols);
                     offset = (offset > sub) ? offset - sub : 0;
@@ -710,7 +710,7 @@ std::string uiStringInput(gpu::Screen screen, std::string preset, const std::str
         stream << ((resultStr.size() - scroll > dispSize) ? ">" : "|") << "\n";
         for(int i = scroll; i <= cursor_s; i++) stream << " ";
         stream << "^" << "\n" << "\n";
-        stream << "R - [h] (" << (char) 0x18 << (char) 0x19 << ") fast scroll" << "\n";
+        stream << "L - [h] (" << (char) 0x18 << (char) 0x19 << ") fast scroll" << "\n";
         stream << "X - [t] remove char / [h] clear" << "\n";
         stream << "Y - [t] insert char / [h] reset" << "\n" << "\n";
         stream << "Press A to confirm, B to cancel." << "\n";
@@ -772,12 +772,12 @@ std::string uiStringInput(gpu::Screen screen, std::string preset, const std::str
                 }
                 
                 if(hid::held(hid::BUTTON_UP)) {
-                    cursor_a += (hid::held(hid::BUTTON_R)) ? fastScroll : 1;
+                    cursor_a += (hid::held(hid::BUTTON_L)) ? fastScroll : 1;
                     while(cursor_a >= (int) alphabet.size()) cursor_a -= alphabet.size();
                 }
 
                 if(hid::held(hid::BUTTON_DOWN)) {
-                    cursor_a -= (hid::held(hid::BUTTON_R)) ? fastScroll : 1;
+                    cursor_a -= (hid::held(hid::BUTTON_L)) ? fastScroll : 1;
                     while(cursor_a < 0) cursor_a += alphabet.size();
                 }
                 

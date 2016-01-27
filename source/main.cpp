@@ -215,11 +215,11 @@ int main(int argc, char **argv) {
     auto instructionBlockHexViewer = [&]() {
         std::stringstream stream;
         stream << std::setfill('0');
-        stream << "L - Move to begin / end";
+        stream << "L - [h] (" << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") fast scroll" << "\n";
+        stream << "R - Move to begin / end";
         if(hvStoredOffset != (u32) -1) {
             stream << " / " << std::hex << std::uppercase << std::setw(8) << hvStoredOffset << std::nouppercase << "\n";
         } else stream << "\n";
-        stream << "R - [h] (" << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") fast scroll" << "\n";
         stream << "X - Go to ... ([t] hex / [h] dec)" << "\n";
         if (hvLastFoundOffset == (u32) -1) stream << "Y - Search ... ([t] hex / [h] string)" << "\n";
         else stream << "Y - Search [t] next / [h] new" << "\n";
@@ -417,8 +417,8 @@ int main(int argc, char **argv) {
             return true;
         }
         
-        // L - GO TO FILE BEGIN/END/STORED
-        if(hid::pressed(hid::BUTTON_L)) {
+        // R - GO TO FILE BEGIN/END/STORED
+        if(hid::pressed(hid::BUTTON_R)) {
             if(hvStoredOffset == (u32) -1) offset = (offset) ? 0 : (u32) -1;
             else offset = (offset) ? ((offset != hvStoredOffset) ? 0 : (u32) -1) : hvStoredOffset;
         }
