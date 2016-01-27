@@ -216,13 +216,13 @@ int main(int argc, char **argv) {
         std::stringstream stream;
         stream << std::setfill('0');
         stream << "L - [h] (" << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") fast scroll" << "\n";
-        stream << "R - Move to begin / end";
         if(hvStoredOffset != (u32) -1) {
-            stream << " / " << std::hex << std::uppercase << std::setw(8) << hvStoredOffset << std::nouppercase << "\n";
-        } else stream << "\n";
-        stream << "X - Go to ... ([t] hex / [h] dec)" << "\n";
-        if (hvLastFoundOffset == (u32) -1) stream << "Y - Search ... ([t] hex / [h] string)" << "\n";
-        else stream << "Y - Search [t] next / [h] new" << "\n";
+            stream << "R - GO TO begin / " << std::hex << std::uppercase << std::setw(8) << hvStoredOffset <<
+             std::nouppercase << " / end" << "\n";
+        } else stream << "R - GO TO begin / end" << "\n";
+        stream << "X - GO TO ... ([t] hex / [h] dec)" << "\n";
+        if (hvLastFoundOffset == (u32) -1) stream << "Y - SEARCH ... ([t] hex / [h] string)" << "\n";
+        else stream << "Y - SEARCH [t] next / [h] new" << "\n";
         stream << "B - Exit to file browser" << "\n";
         
         return stream.str();
