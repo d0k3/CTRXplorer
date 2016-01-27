@@ -114,7 +114,43 @@ u32 fsGetFileSize(const std::string path) {
     return (u32) st.st_size;
 }
 
-bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset)> onLoop, std::function<bool(u8* data)> onUpdate) {
+u32 fsDataSearch(const std::string path, const std::vector<u8> searchTerm, const u32 offset, bool showProgress) {
+    u64 total = fsGetFileSize(path);
+    u64 totalPlus = total + searchTerm.size() - 1;
+    u32 offsetFound = (u32) -1;
+    size_t l_bufsiz = (total < CTRX_BUFSIZ) ? total : CTRX_BUFSIZ;
+    u8* buffer = (u8*) malloc( l_bufsiz );
+    FILE* fp = fopen(path.c_str(), "rb");
+    if((!searchTerm.empty()) && (fp != NULL) && (buffer != NULL)) {
+        size_t size = 0;
+        for (u64 i = 0; (i < totalPlus) && (offsetFound == (u32) -1); i += size) {
+            u64 pos = (offset + i) % total;
+            if(total - pos < l_bufsiz) size = total - pos;
+            else if(totalPlus - i < l_bufsiz) size = totalPlus - i;
+            else size = l_bufsiz;
+            if(size < searchTerm.size()) continue;
+            if(showProgress && !fsShowProgress("Searching", path, pos, total)) {
+                errno = ECANCELED;
+                break;
+            }
+            fseek(fp, pos, SEEK_SET);
+            if(fread(buffer, 1, size, fp) != size)
+                break;
+            for (u32 p = 0; p <= size - searchTerm.size(); p++) {
+                if(memcmp(buffer + p, searchTerm.data(), searchTerm.size()) == 0) {
+                    offsetFound = pos + p;
+                    break;
+                }
+            }
+        }
+    }
+    if(buffer != NULL) free(buffer);
+    if(fp != NULL) fclose(fp);
+    
+    return offsetFound;
+}
+
+bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset, bool &forceRefresh)> onLoop, std::function<bool(u8* data)> onUpdate) {
     if((onLoop == NULL) || (onUpdate == NULL)) {
         errno = ENOTSUP;
         return false;
@@ -131,6 +167,8 @@ bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::funct
     u32 fileSize  = fsGetFileSize(path);
     u32 offsetPrev = (u32) -1;
     
+    bool forceRefresh = false;
+    
     bool result = false;
     
     if((fp == NULL) || (buffer == NULL)) {
@@ -140,8 +178,12 @@ bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::funct
     }
     
     while(core::running()) {
-        if((offset != offsetPrev) && (offset <= fileSize)) {
-            if(offset < offsetPrev) {
+        if(((offset != offsetPrev) || forceRefresh) && (offset <= fileSize)) {
+            if (forceRefresh) {
+                fseek(fp, offset, SEEK_SET);
+                fread(buffer, 1, buffSize, fp);
+                forceRefresh = false;
+            } else if(offset < offsetPrev) {
                 u32 dataEnd = offset + buffSize;
                 u32 overlap = (dataEnd > offsetPrev) ? dataEnd - offsetPrev : 0;
                 memmove(bufferEnd - overlap, buffer, overlap);
@@ -164,7 +206,7 @@ bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::funct
             }
         } else if(offset > fileSize) {
             offset = fileSize;
-        } else if(onLoop(offset)) {
+        } else if(onLoop(offset, forceRefresh)) {
             result = true;
         }
         
@@ -216,7 +258,7 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
         u8* buffer = (u8*) malloc( l_bufsiz );
         FILE* fp = fopen(path.c_str(), "rb");
         FILE* fd = fopen(dest.c_str(), "wb");
-        if ((fp != NULL) && (fd != NULL) && (buffer != NULL)) {
+        if((fp != NULL) && (fd != NULL) && (buffer != NULL)) {
             u64 pos = 0;
             size_t size;
             while ((size = fread(buffer, 1, l_bufsiz, fp)) > 0) {

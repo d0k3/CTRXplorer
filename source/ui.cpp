@@ -447,7 +447,7 @@ bool uiFileBrowser(const std::string rootDirectory, const std::string startPath,
     return result;
 }
 
-bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset)> onLoop, std::function<bool(u32 offset)> onUpdate) {
+bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset, u32 &markedOffset, u32 &markedLenght)> onLoop, std::function<bool(u32 offset)> onUpdate) {
     const u32 cpad = 2;
     
     const u32 rows = gpu::BOTTOM_HEIGHT / (8 + (2*cpad));
@@ -464,10 +464,15 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
     u32 currOffset = start;
     u32 maxOffset = (fileSize <= nShown) ? 0 :
         ((fileSize % cols) ? fileSize + (cols - (fileSize % cols)) - nShown : fileSize - nShown);
+        
+    u32 markedOffset = 0;
+    u32 markedLength = 0;
+    u32 markedOffsetPrev = 0;
+    u32 markedLengthPrev = 0;
     
     
     result = fsDataProvider(path, start, nShown,
-        [&](u32 &offset) {
+        [&](u32 &offset, bool &forceRefresh) { // onLoop
             hid::poll();
             
             if(hid::pressed(hid::BUTTON_B)) {
@@ -497,9 +502,25 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
             }
             
             if(onLoop != NULL) {
-                if(onLoop(offset)) return true;
+                if(onLoop(offset, markedOffset, markedLength)) return true;
+                if((markedOffset != markedOffsetPrev) || (markedLength != markedLengthPrev)) {
+                    if(markedOffset + markedLength > fileSize)
+                        markedOffset = markedLength = 0;
+                    if(markedLength) {
+                        if(markedOffset < offset) {
+                            offset = markedOffset;
+                        }
+                        else if(markedOffset + markedLength > offset + nShown) {
+                            offset = (markedOffset + markedLength) - nShown + (cols - 1);
+                        }
+                    }
+                    markedOffsetPrev = markedOffset;
+                    markedLengthPrev = markedLength;
+                    forceRefresh = true;
+                }
                 if(currOffset != offset) {
                     if(offset > maxOffset) offset = maxOffset;
+                    else offset -= offset % cols;
                     currOffset = offset;
                 }
             }
@@ -508,8 +529,9 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
             
             return false;
         },
-        [&](u8* data) {
+        [&](u8* data) { // onUpdate
             const u8 gr = 0x9F;
+            const u8 mr = 0x4F;
             
             gpu::setViewport(gpu::SCREEN_BOTTOM, 0, 0, gpu::BOTTOM_WIDTH, gpu::BOTTOM_HEIGHT);
             gput::setOrtho(0, gpu::BOTTOM_WIDTH, 0, gpu::BOTTOM_HEIGHT, -1, 1);
@@ -532,6 +554,11 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                         if(currOffset + pos < fileSize) {
                             u32 hDrawPos = 64 + (32 - (cols * cpad)) + ((pos % cols) * 2 * (8 + cpad)) + cpad;
                             u8 symbol = data[pos];
+                            if ((currOffset + pos >= markedOffset) && (currOffset + pos < markedOffset + markedLength)) {
+                                uiDrawRectangle(hDrawPos - 1, vDrawPos - 1, 2 + (2*8), 2 + 1 + 8, mr, mr, mr);
+                                uiDrawRectangle(gpu::BOTTOM_WIDTH - ((cols-(pos%cols))*8) - 1, vDrawPos - 1,
+                                    2 + 8, 2 + 1 + 8, mr, mr, mr);
+                            }
                             ssHex << std::setw(2) << (u32) symbol;
                             gput::drawString(ssHex.str(), hDrawPos, vDrawPos, 8, 8);
                             ssHex.str("");
@@ -810,6 +837,27 @@ u32 uiNumberInput(gpu::Screen screen, u32 preset, const std::string message, boo
     std::istringstream output(resultStr);
     if(!hex) output >> result;
     else output >> std::hex >> result;
+    
+    return result;
+}
+
+std::vector<u8> uiDataInput(gpu::Screen screen, std::vector<u8> preset, const std::string message) {
+    std::string resultStr;
+    std::vector<u8> result;
+    
+    std::stringstream input;
+    for(std::vector<u8>::iterator it = preset.begin(); it != preset.end(); it++)
+        input << std::setfill('0') << std::uppercase << std::hex << std::setw(2) << (u32) (*it);
+    
+    resultStr = uiStringInput(screen, input.str(), "0123456789ABCDEF", message);
+    if(resultStr.size() % 2) resultStr.erase(resultStr.end() - 1, resultStr.end());
+    
+    for (u32 p = 0; p < resultStr.size(); p += 2) {
+        std::istringstream output(resultStr.substr(p, 2));
+        u32 byte = 0;
+        output >> std::hex >> byte;
+        result.push_back(byte);
+    }
     
     return result;
 }

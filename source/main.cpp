@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     
-    const std::string title = "CTRX SD Explorer v0.8.9";
+    const std::string title = "CTRX SD Explorer v0.9.0beta";
     const u64 tapDelay = 240;
 
     bool launcher = core::launcher();
@@ -53,10 +53,14 @@ int main(int argc, char **argv) {
     int dummyContent = 0x00;
     
     u32 hvStoredOffset = (u32) -1;
+    u32 hvLastFoundOffset = (u32) -1;
+    std::string hvLastSearchStr = "?";
+    std::vector<u8> hvLastSearchHex(1, 0);
+    std::vector<u8> hvLastSearch(1, 0);
     
     auto processAction = [&](Action action, bool &updateList, bool &resetCursor) {
         const std::string alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]'`^,~!@#$%&0123456789=+-_.";
-        
+
         switch(action) {
             case A_DELETE: {
                 if((*markedElements).empty()) {
@@ -211,13 +215,14 @@ int main(int argc, char **argv) {
     auto instructionBlockHexViewer = [&]() {
         std::stringstream stream;
         stream << std::setfill('0');
-        stream << "L - Move to beginning / end" << "\n";
+        stream << "L - Move to begin / end";
+        if(hvStoredOffset != (u32) -1) {
+            stream << " / " << std::hex << std::uppercase << std::setw(8) << hvStoredOffset << std::nouppercase << "\n";
+        } else stream << "\n";
         stream << "R - [h] (" << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") fast scroll" << "\n";
         stream << "X - Go to ... ([t] hex / [h] dec)" << "\n";
-        if(hvStoredOffset != (u32) -1) {
-            stream << "Y - Return to offset ";
-            stream << std::hex << std::uppercase << std::setw(8) << hvStoredOffset << std::nouppercase << "\n";
-        }
+        if (hvLastFoundOffset == (u32) -1) stream << "Y - Search ... ([t] hex / [h] string)" << "\n";
+        else stream << "Y - Search [t] next / [h] new" << "\n";
         stream << "B - Exit to file browser" << "\n";
         
         return stream.str();
@@ -401,7 +406,7 @@ int main(int argc, char **argv) {
         return breakLoop;
     };
     
-    auto onLoopHexViewer = [&](u32 &offset) {
+    auto onLoopHexViewer = [&](u32 &offset, u32 &markedOffset, u32 &markedLength) {
         bool breakLoop = false;
         
         onLoopDisplay();
@@ -412,14 +417,10 @@ int main(int argc, char **argv) {
             return true;
         }
         
-        // L - GO TO FILE BEGIN/END
+        // L - GO TO FILE BEGIN/END/STORED
         if(hid::pressed(hid::BUTTON_L)) {
-            offset = (offset) ? 0 : (u32) -1;
-        }
-        
-        // Y - RETURN TO OFFSET
-        if(hid::pressed(hid::BUTTON_Y) && (hvStoredOffset != (u32) -1)) {
-            offset = hvStoredOffset;
+            if(hvStoredOffset == (u32) -1) offset = (offset) ? 0 : (u32) -1;
+            else offset = (offset) ? ((offset != hvStoredOffset) ? 0 : (u32) -1) : hvStoredOffset;
         }
         
         // X - GO TO OFFSET
@@ -441,6 +442,57 @@ int main(int argc, char **argv) {
             inputXHoldTime = 0;
         }
         
+        // Y - SEARCH STRING / DATA
+        if(hid::held(hid::BUTTON_Y) && (inputYHoldTime != (u64) -1)) {
+            if(inputYHoldTime == 0) inputYHoldTime = core::time();
+            else if(core::time() - inputYHoldTime >= tapDelay) {
+                if (hvLastFoundOffset != (u32) -1) {
+                    markedOffset = markedLength = 0;
+                    hvLastFoundOffset = (u32) -1;
+                    inputYHoldTime = (u64) -1;
+                } else {
+                    const std::string alphabet = "?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]<>/\\|*:=+-_.'\"`^,~!@#$%& 0123456789";
+                    std::string confirmMsg = "Enter search string below:\n";
+                    std::string searchStr = uiStringInput(gpu::SCREEN_TOP, hvLastSearchStr, alphabet, confirmMsg);
+                    if(!searchStr.empty()) {
+                        u32 offsetNew;
+                        hvLastSearchStr = searchStr;
+                        hvLastSearch = std::vector<u8>(hvLastSearchStr.begin(), hvLastSearchStr.end());
+                        offsetNew = fsDataSearch(currentFile.id, hvLastSearch, offset, true);
+                        if(offsetNew != (u32) -1) {
+                            markedOffset = hvLastFoundOffset = offsetNew;
+                            markedLength = hvLastSearch.size();
+                        } else uiErrorPrompt(gpu::SCREEN_TOP, "Searching", "Not found: " + searchStr, false, false);
+                    }
+                    inputYHoldTime = 0;
+                }
+            }
+        }
+        if(hid::released(hid::BUTTON_Y) && (inputYHoldTime != 0)) {
+            if(inputYHoldTime != (u64) -1) {
+                u32 offsetNew = (u32) -1;
+                if(hvLastFoundOffset == (u32) -1) {
+                    std::string confirmMsg = "Enter search value below:\n";
+                    std::vector<u8> searchTerm = uiDataInput(gpu::SCREEN_TOP, hvLastSearchHex, confirmMsg);
+                    if(!searchTerm.empty()) {
+                        hvLastSearchHex = hvLastSearch = searchTerm;
+                        offsetNew = fsDataSearch(currentFile.id, hvLastSearch, offset, true);
+                        if(offsetNew == (u32) -1) {
+                            std::stringstream searchText;
+                            for(std::vector<u8>::iterator it = searchTerm.begin(); it != searchTerm.end(); it++)
+                                searchText << std::setfill('0') << std::uppercase << std::hex << std::setw(2) << (u32) (*it);
+                            uiErrorPrompt(gpu::SCREEN_TOP, "Searching", "Not found: " + searchText.str(), false, false);
+                        }
+                    }
+                } else offsetNew = fsDataSearch(currentFile.id, hvLastSearch, hvLastFoundOffset + 1, true);
+                if(offsetNew != (u32) -1) {
+                    markedOffset = hvLastFoundOffset = offsetNew;
+                    markedLength = hvLastSearch.size();
+                }
+            }
+            inputYHoldTime = 0;
+        }
+        
         return breakLoop;
     };
     
@@ -450,8 +502,8 @@ int main(int argc, char **argv) {
             hvStoredOffset = (u32) -1;
             currentFile.details.insert(currentFile.details.begin(), "@FFFFFFFF (-1)");
             if(!uiHexViewer(currentFile.id, 0,
-                [&](u32 &offset) { // onLoop function
-                    return onLoopHexViewer(offset);
+                [&](u32 &offset, u32 &markedOffset, u32 &markedLength) { // onLoop function
+                    return onLoopHexViewer(offset, markedOffset, markedLength);
                 },
                 [&](u32 offset) { // onUpdate function
                     std::stringstream ssOffset;
