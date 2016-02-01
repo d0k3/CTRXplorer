@@ -682,7 +682,7 @@ bool uiErrorPrompt(gpu::Screen screen, const std::string operationStr, const std
     return result;
 }
 
-std::string uiStringInput(gpu::Screen screen, std::string preset, const std::string alphabet, const std::string message) {
+std::string uiStringInput(gpu::Screen screen, std::string preset, const std::string alphabet, const std::string message, u32 resize) {
     const int dispSize = 30;
     const u64 tapDelay = 360;
     const u64 scrollDelay = 120;
@@ -711,8 +711,13 @@ std::string uiStringInput(gpu::Screen screen, std::string preset, const std::str
         for(int i = scroll; i <= cursor_s; i++) stream << " ";
         stream << "^" << "\n" << "\n";
         stream << "L - [h] (" << (char) 0x18 << (char) 0x19 << ") fast scroll" << "\n";
-        stream << "X - [t] remove char / [h] clear" << "\n";
-        stream << "Y - [t] insert char / [h] reset" << "\n" << "\n";
+        if(resize) {
+            stream << "X - [t] remove char / [h] clear" << "\n";
+            stream << "Y - [t] insert char / [h] reset" << "\n" << "\n";
+        } else {
+            stream << "X - [h] clear" << "\n";
+            stream << "Y - [h] reset" << "\n" << "\n";
+        }
         stream << "Press A to confirm, B to cancel." << "\n";
     
         hid::poll();
@@ -730,17 +735,22 @@ std::string uiStringInput(gpu::Screen screen, std::string preset, const std::str
         if(hid::held(hid::BUTTON_X) && (inputXHoldTime != (u64) -1)) {
             if(inputXHoldTime == 0) inputXHoldTime = core::time();
             else if(core::time() - inputXHoldTime >= tapDelay) {
-                resultStr = alphabet.substr(0, 1);
-                cursor_s = 0;
-                cursor_a = 0;
-                scroll = 0;
+                if(resize) {
+                    resultStr.assign(resize, alphabet.at(0));
+                    cursor_s = 0;
+                    cursor_a = 0;
+                    scroll = 0;
+                } else {
+                    resultStr.assign(resultStr.size(), alphabet.at(0));
+                    cursor_a = 0;
+                }
                 inputXHoldTime = (u64) -1;
             }
         }
         if(hid::released(hid::BUTTON_X) && (inputXHoldTime != 0)) {
-            if((inputXHoldTime != (u64) -1) && (resultStr.size() > 1)) {
-                resultStr.erase(cursor_s, 1);
-                if(cursor_s == (int) resultStr.size()) cursor_s--;
+            if((inputXHoldTime != (u64) -1) && (resultStr.size() > resize) && resize) {
+                resultStr.erase(cursor_s - (cursor_s % resize), resize);
+                while(cursor_s >= (int) resultStr.size()) cursor_s--;
                 cursor_a = -1;
             }
             inputXHoldTime = 0;
@@ -756,13 +766,13 @@ std::string uiStringInput(gpu::Screen screen, std::string preset, const std::str
                 inputYHoldTime = (u64) -1;
             }
         }
-        if(hid::released(hid::BUTTON_Y) && (inputYHoldTime != 0)) {
+        if(hid::released(hid::BUTTON_Y) && (inputYHoldTime != 0) && resize) {
             if(inputYHoldTime != (u64) -1) {
-                resultStr.insert(cursor_s, alphabet.substr(0,1));
+                resultStr.insert(cursor_s - (cursor_s % resize), resize, alphabet.at(0));
                 cursor_a = 0;
             }
             inputYHoldTime = 0;
-        }
+        } 
         
         if(hid::held(hid::BUTTON_DOWN) || hid::held(hid::BUTTON_UP)) {
             if(lastScrollTime == 0 || core::time() - lastScrollTime >= scrollDelay) {
@@ -797,8 +807,10 @@ std::string uiStringInput(gpu::Screen screen, std::string preset, const std::str
                 if(hid::held(hid::BUTTON_RIGHT)) {
                     cursor_s++;
                     if(cursor_s == (int) resultStr.size()) {
-                        resultStr.append(alphabet.substr(0, 1));
-                        cursor_a = 0;
+                        if(resize) {
+                            resultStr.append(resize, alphabet.at(0));
+                            cursor_a = 0;
+                        } else cursor_s--;
                     } else cursor_a = -1;
                     if(scroll + dispSize <= cursor_s) scroll = cursor_s - dispSize + 1;
                 }
@@ -831,7 +843,7 @@ u32 uiNumberInput(gpu::Screen screen, u32 preset, const std::string message, boo
     if(!hex) input << preset;
     else input << std::setfill('0') << std::uppercase << std::hex << std::setw(8) << preset;
     
-    resultStr = uiStringInput(screen, input.str(), (hex) ? "0123456789ABCDEF" : "0123456789", message);
+    resultStr = uiStringInput(screen, input.str(), (hex) ? "0123456789ABCDEF" : "0123456789", message, !hex);
     if(resultStr.empty()) return (u32) -1;
     
     std::istringstream output(resultStr);
@@ -841,7 +853,7 @@ u32 uiNumberInput(gpu::Screen screen, u32 preset, const std::string message, boo
     return result;
 }
 
-std::vector<u8> uiDataInput(gpu::Screen screen, std::vector<u8> preset, const std::string message) {
+std::vector<u8> uiDataInput(gpu::Screen screen, std::vector<u8> preset, const std::string message, bool allowResize) {
     std::string resultStr;
     std::vector<u8> result;
     
@@ -849,7 +861,7 @@ std::vector<u8> uiDataInput(gpu::Screen screen, std::vector<u8> preset, const st
     for(std::vector<u8>::iterator it = preset.begin(); it != preset.end(); it++)
         input << std::setfill('0') << std::uppercase << std::hex << std::setw(2) << (u32) (*it);
     
-    resultStr = uiStringInput(screen, input.str(), "0123456789ABCDEF", message);
+    resultStr = uiStringInput(screen, input.str(), "0123456789ABCDEF", message, (allowResize) ? 2 : 0);
     if(resultStr.size() % 2) resultStr.erase(resultStr.end() - 1, resultStr.end());
     
     for (u32 p = 0; p < resultStr.size(); p += 2) {

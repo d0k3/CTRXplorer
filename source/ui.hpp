@@ -27,9 +27,9 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
 void uiDisplayMessage(ctr::gpu::Screen screen, const std::string message);
 bool uiPrompt(ctr::gpu::Screen screen, const std::string message, bool question);
 bool uiErrorPrompt(ctr::gpu::Screen screen, const std::string operationStr, const std::string detailStr, bool checkErrno, bool question);
-std::string uiStringInput(ctr::gpu::Screen screen, std::string preset, const std::string alphabet, const std::string message);
+std::string uiStringInput(ctr::gpu::Screen screen, std::string preset, const std::string alphabet, const std::string message, u32 resize = 1);
 u32 uiNumberInput(ctr::gpu::Screen screen, u32 preset, const std::string message, bool hex = false);
-std::vector<u8> uiDataInput(ctr::gpu::Screen screen, std::vector<u8> preset, const std::string message);
+std::vector<u8> uiDataInput(ctr::gpu::Screen screen, std::vector<u8> preset, const std::string message, bool allowResize = true);
 void uiDisplayProgress(ctr::gpu::Screen screen, const std::string operation, const std::string details, bool quickSwap, u32 progress);
 
 #endif
