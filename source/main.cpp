@@ -52,6 +52,7 @@ int main(int argc, char **argv) {
     u32 dummySize = (u32) -1;
     int dummyContent = 0x00;
     
+    bool hvSelectMode = false;
     u32 hvStoredOffset = (u32) -1;
     u32 hvLastFoundOffset = (u32) -1;
     std::string hvLastSearchStr = "?";
@@ -223,7 +224,16 @@ int main(int argc, char **argv) {
         stream << "X - GO TO ... ([t] hex / [h] dec)" << "\n";
         if (hvLastFoundOffset == (u32) -1) stream << "Y - SEARCH ... ([t] hex / [h] string)" << "\n";
         else stream << "Y - SEARCH [t] next / [h] new" << "\n";
+        stream << "A - Enter EDIT mode" << "\n";
         stream << "B - Exit to file browser" << "\n";
+        
+        return stream.str();
+    };
+    
+    auto instructionBlockHexEditor = [&]() {
+        std::stringstream stream;
+        stream << "A - [h] ("  << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") / [t] EDIT data" << "\n";
+        stream << "B - Exit EDIT mode" << "\n";
         
         return stream.str();
     };
@@ -288,7 +298,8 @@ int main(int argc, char **argv) {
         }
         
         // INSTRUCTIONS BLOCK
-        str = title + "\n" + ((mode == M_BROWSER) ? instructionBlockBrowser() : instructionBlockHexViewer());
+        str = title + "\n" + ((mode == M_BROWSER) ? instructionBlockBrowser() :
+            ((hvSelectMode) ? instructionBlockHexEditor() : instructionBlockHexViewer()));
         if(launcher) str += "START - Exit to launcher\n";
         gput::drawString(str, (screenWidth - 320) / 2, 4, 8, 8);
         
@@ -417,80 +428,102 @@ int main(int argc, char **argv) {
             return true;
         }
         
-        // R - GO TO FILE BEGIN/END/STORED
-        if(hid::pressed(hid::BUTTON_R)) {
-            if(hvStoredOffset == (u32) -1) offset = (offset) ? 0 : (u32) -1;
-            else offset = (offset) ? ((offset != hvStoredOffset) ? 0 : (u32) -1) : hvStoredOffset;
-        }
-        
-        // X - GO TO OFFSET
-        if(hid::held(hid::BUTTON_X) && (inputXHoldTime != (u64) -1)) {
-            if(inputXHoldTime == 0) inputXHoldTime = core::time();
-            else if(core::time() - inputXHoldTime >= tapDelay) {
-                std::string confirmMsg = "Enter new decimal offset below:\n";
-                u32 offsetNew = uiNumberInput(gpu::SCREEN_TOP, offset, confirmMsg, false);
-                if(offsetNew != (u32) -1) hvStoredOffset = offset = offsetNew;
+        if(!hvSelectMode) {
+            // R - GO TO FILE BEGIN/END/STORED
+            if(hid::pressed(hid::BUTTON_R)) {
+                if(hvStoredOffset == (u32) -1) offset = (offset) ? 0 : (u32) -1;
+                else offset = (offset) ? ((offset != hvStoredOffset) ? 0 : (u32) -1) : hvStoredOffset;
+            }
+
+            // X - GO TO OFFSET
+            if(hid::held(hid::BUTTON_X) && (inputXHoldTime != (u64) -1)) {
+                if(inputXHoldTime == 0) inputXHoldTime = core::time();
+                else if(core::time() - inputXHoldTime >= tapDelay) {
+                    std::string confirmMsg = "Enter new decimal offset below:\n";
+                    u32 offsetNew = uiNumberInput(gpu::SCREEN_TOP, offset, confirmMsg, false);
+                    if(offsetNew != (u32) -1) hvStoredOffset = offset = offsetNew;
+                    inputXHoldTime = 0;
+                }
+            }
+            if(hid::released(hid::BUTTON_X) && (inputXHoldTime != 0)) {
+                if(inputXHoldTime != (u64) -1) {
+                    std::string confirmMsg = "Enter new hexadecimal offset below:\n";
+                    u32 offsetNew = uiNumberInput(gpu::SCREEN_TOP, offset, confirmMsg, true);
+                    if(offsetNew != (u32) -1) hvStoredOffset = offset = offsetNew;
+                }
                 inputXHoldTime = 0;
             }
-        }
-        if(hid::released(hid::BUTTON_X) && (inputXHoldTime != 0)) {
-            if(inputXHoldTime != (u64) -1) {
-                std::string confirmMsg = "Enter new hexadecimal offset below:\n";
-                u32 offsetNew = uiNumberInput(gpu::SCREEN_TOP, offset, confirmMsg, true);
-                if(offsetNew != (u32) -1) hvStoredOffset = offset = offsetNew;
+            
+            // Y - SEARCH STRING / DATA
+            if(hid::held(hid::BUTTON_Y) && (inputYHoldTime != (u64) -1)) {
+                if(inputYHoldTime == 0) inputYHoldTime = core::time();
+                else if(core::time() - inputYHoldTime >= tapDelay) {
+                    if (hvLastFoundOffset != (u32) -1) {
+                        markedOffset = markedLength = 0;
+                        hvLastFoundOffset = (u32) -1;
+                        inputYHoldTime = (u64) -1;
+                    } else {
+                        const std::string alphabet = "?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]<>/\\|*:=+-_.'\"`^,~!@#$%& 0123456789";
+                        std::string confirmMsg = "Enter search string below:\n";
+                        std::string searchStr = uiStringInput(gpu::SCREEN_TOP, hvLastSearchStr, alphabet, confirmMsg);
+                        if(!searchStr.empty()) {
+                            u32 offsetNew;
+                            hvLastSearchStr = searchStr;
+                            hvLastSearch = std::vector<u8>(hvLastSearchStr.begin(), hvLastSearchStr.end());
+                            offsetNew = fsDataSearch(currentFile.id, hvLastSearch, offset, true);
+                            if(offsetNew != (u32) -1) {
+                                markedOffset = hvLastFoundOffset = offsetNew;
+                                markedLength = hvLastSearch.size();
+                            } else uiErrorPrompt(gpu::SCREEN_TOP, "Searching", "Not found: " + searchStr, false, false);
+                        }
+                        inputYHoldTime = 0;
+                    }
+                }
             }
-            inputXHoldTime = 0;
+            if(hid::released(hid::BUTTON_Y) && (inputYHoldTime != 0)) {
+                if(inputYHoldTime != (u64) -1) {
+                    u32 offsetNew = (u32) -1;
+                    if(hvLastFoundOffset == (u32) -1) {
+                        std::string confirmMsg = "Enter search value below:\n";
+                        std::vector<u8> searchTerm = uiDataInput(gpu::SCREEN_TOP, hvLastSearchHex, confirmMsg);
+                        if(!searchTerm.empty()) {
+                            hvLastSearchHex = hvLastSearch = searchTerm;
+                            offsetNew = fsDataSearch(currentFile.id, hvLastSearch, offset, true);
+                            if(offsetNew == (u32) -1) {
+                                std::stringstream searchText;
+                                for(std::vector<u8>::iterator it = searchTerm.begin(); it != searchTerm.end(); it++)
+                                    searchText << std::setfill('0') << std::uppercase << std::hex << std::setw(2) << (u32) (*it);
+                                uiErrorPrompt(gpu::SCREEN_TOP, "Searching", "Not found: " + searchText.str(), false, false);
+                            }
+                        }
+                    } else offsetNew = fsDataSearch(currentFile.id, hvLastSearch, hvLastFoundOffset + 1, true);
+                    if(offsetNew != (u32) -1) {
+                        markedOffset = hvLastFoundOffset = offsetNew;
+                        markedLength = hvLastSearch.size();
+                    }
+                }
+                inputYHoldTime = 0;
+            }
         }
         
-        // Y - SEARCH STRING / DATA
-        if(hid::held(hid::BUTTON_Y) && (inputYHoldTime != (u64) -1)) {
-            if(inputYHoldTime == 0) inputYHoldTime = core::time();
-            else if(core::time() - inputYHoldTime >= tapDelay) {
-                if (hvLastFoundOffset != (u32) -1) {
-                    markedOffset = markedLength = 0;
-                    hvLastFoundOffset = (u32) -1;
-                    inputYHoldTime = (u64) -1;
-                } else {
-                    const std::string alphabet = "?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]<>/\\|*:=+-_.'\"`^,~!@#$%& 0123456789";
-                    std::string confirmMsg = "Enter search string below:\n";
-                    std::string searchStr = uiStringInput(gpu::SCREEN_TOP, hvLastSearchStr, alphabet, confirmMsg);
-                    if(!searchStr.empty()) {
-                        u32 offsetNew;
-                        hvLastSearchStr = searchStr;
-                        hvLastSearch = std::vector<u8>(hvLastSearchStr.begin(), hvLastSearchStr.end());
-                        offsetNew = fsDataSearch(currentFile.id, hvLastSearch, offset, true);
-                        if(offsetNew != (u32) -1) {
-                            markedOffset = hvLastFoundOffset = offsetNew;
-                            markedLength = hvLastSearch.size();
-                        } else uiErrorPrompt(gpu::SCREEN_TOP, "Searching", "Not found: " + searchStr, false, false);
-                    }
-                    inputYHoldTime = 0;
-                }
+        return breakLoop;
+    };
+    
+    auto onSelectHexViewer = [&](u32 selectedOffset, u32 selectedLength, hid::Button selectButton, bool &forceRefresh) {
+        bool breakLoop = false;
+        
+        // A - EDIT DATA
+        if(selectButton == hid::BUTTON_A) {
+            std::string confirmMsg = "Enter new hex value(s) below:\n";
+            std::vector<u8> selected = fsDataGet(currentFile.id, selectedOffset, selectedLength);
+            if(selected.size() != selectedLength) {
+                uiErrorPrompt(gpu::SCREEN_TOP, "Reading", currentFile.id, true, false);
+            } else {
+                selected = uiDataInput(gpu::SCREEN_TOP, selected, confirmMsg, 0);
+                if(!selected.empty() && !fsDataReplace(currentFile.id, selected, selectedOffset, selectedLength))
+                    uiErrorPrompt(gpu::SCREEN_TOP, "Writing", currentFile.id, true, false);
+                else forceRefresh = true;
             }
-        }
-        if(hid::released(hid::BUTTON_Y) && (inputYHoldTime != 0)) {
-            if(inputYHoldTime != (u64) -1) {
-                u32 offsetNew = (u32) -1;
-                if(hvLastFoundOffset == (u32) -1) {
-                    std::string confirmMsg = "Enter search value below:\n";
-                    std::vector<u8> searchTerm = uiDataInput(gpu::SCREEN_TOP, hvLastSearchHex, confirmMsg);
-                    if(!searchTerm.empty()) {
-                        hvLastSearchHex = hvLastSearch = searchTerm;
-                        offsetNew = fsDataSearch(currentFile.id, hvLastSearch, offset, true);
-                        if(offsetNew == (u32) -1) {
-                            std::stringstream searchText;
-                            for(std::vector<u8>::iterator it = searchTerm.begin(); it != searchTerm.end(); it++)
-                                searchText << std::setfill('0') << std::uppercase << std::hex << std::setw(2) << (u32) (*it);
-                            uiErrorPrompt(gpu::SCREEN_TOP, "Searching", "Not found: " + searchText.str(), false, false);
-                        }
-                    }
-                } else offsetNew = fsDataSearch(currentFile.id, hvLastSearch, hvLastFoundOffset + 1, true);
-                if(offsetNew != (u32) -1) {
-                    markedOffset = hvLastFoundOffset = offsetNew;
-                    markedLength = hvLastSearch.size();
-                }
-            }
-            inputYHoldTime = 0;
         }
         
         return breakLoop;
@@ -502,15 +535,19 @@ int main(int argc, char **argv) {
             hvStoredOffset = (u32) -1;
             currentFile.details.insert(currentFile.details.begin(), "@FFFFFFFF (-1)");
             if(!uiHexViewer(currentFile.id, 0,
-                [&](u32 &offset, u32 &markedOffset, u32 &markedLength) { // onLoop function
+                [&](u32 &offset, u32 &markedOffset, u32 &markedLength, bool &forceRefresh, bool selectMode) { // onLoop
+                    if(hvSelectMode != selectMode) hvSelectMode = selectMode;
                     return onLoopHexViewer(offset, markedOffset, markedLength);
                 },
-                [&](u32 offset) { // onUpdate function
+                [&](u32 offset) { // onUpdate
                     std::stringstream ssOffset;
                     ssOffset << "@" << std::setfill('0') << std::uppercase;
                     ssOffset << std::hex << std::setw(8) << offset << " (" << std::dec << offset << ")";
                     currentFile.details.at(0) = ssOffset.str();
                     return false;
+                },
+                [&](u32 selectedOffset, u32 selectedLength, hid::Button selectButton, bool &forceRefresh) { // onSelect
+                    return onSelectHexViewer(selectedOffset, selectedLength, selectButton, forceRefresh);
                 })) {
                 uiErrorPrompt(gpu::SCREEN_TOP, "Hexview", currentFile.name, true, false);
             }

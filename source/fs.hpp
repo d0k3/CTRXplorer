@@ -27,6 +27,8 @@ bool fsHasExtension(const std::string path, const std::string extension);
 bool fsHasExtensions(const std::string path, const std::vector<std::string> extensions);
 u32 fsGetFileSize(const std::string path);
 u32 fsDataSearch(const std::string path, const std::vector<u8> searchTerm, const u32 offset = 0, bool showProgress = false);
+std::vector<u8> fsDataGet(const std::string path, u32 offset, u32 size);
+bool fsDataReplace(const std::string path, const std::vector<u8> data, u32 offset, u32 size);
 bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset, bool &forceRefresh)> onLoop, std::function<bool(u8* data)> onUpdate);
 bool fsPathDelete(const std::string path);
 bool fsPathCopy(const std::string path, const std::string dest, bool showProgress = false);

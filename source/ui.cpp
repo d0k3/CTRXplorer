@@ -447,7 +447,7 @@ bool uiFileBrowser(const std::string rootDirectory, const std::string startPath,
     return result;
 }
 
-bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset, u32 &markedOffset, u32 &markedLenght)> onLoop, std::function<bool(u32 offset)> onUpdate) {
+bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset, u32 &markedOffset, u32 &markedLength, bool &forceRefresh, bool selectMode)> onLoop, std::function<bool(u32 offset)> onUpdate, std::function<bool(u32 selectedOffset, u32 selectedLength, hid::Button selectButton, bool &forceRefresh)> onSelect) {
     const u32 cpad = 2;
     
     const u32 rows = gpu::BOTTOM_HEIGHT / (8 + (2*cpad));
@@ -464,60 +464,175 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
     u32 currOffset = start;
     u32 maxOffset = (fileSize <= nShown) ? 0 :
         ((fileSize % cols) ? fileSize + (cols - (fileSize % cols)) - nShown : fileSize - nShown);
-        
+    
+    bool selectMode = false;
+    hid::Button selectButton = hid::BUTTON_NONE;
+    u32 selectOffset = 0;
     u32 markedOffset = 0;
     u32 markedLength = 0;
     u32 markedOffsetPrev = 0;
     u32 markedLengthPrev = 0;
     
+    auto redrawHexView = [&](u8* data) {
+        static u8* localData = NULL;
+        
+        const u8 gr = 0x9F;
+        const u8 mr = 0x4F;
+        
+        if(data != NULL) localData = data;
+        
+        gpu::setViewport(gpu::SCREEN_BOTTOM, 0, 0, gpu::BOTTOM_WIDTH, gpu::BOTTOM_HEIGHT);
+        gput::setOrtho(0, gpu::BOTTOM_WIDTH, 0, gpu::BOTTOM_HEIGHT, -1, 1);
+        gpu::clear();
+        
+        uiDrawPositionBar(currOffset, nShown, fileSize);
+        
+        for(u32 pos = 0; pos < nShown; ) {
+            u32 vDrawPos = gpu::BOTTOM_HEIGHT - (((u32) (pos / cols) + 1) * (8 + (2*cpad))) + cpad;
+            
+            std::stringstream ssIndex;
+            ssIndex << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << (currOffset + pos);
+            gput::drawString(ssIndex.str(), 0, vDrawPos, 8, 8, gr, gr, gr);
+            
+            if(currOffset + pos < fileSize) {
+                std::stringstream ssAscii;
+                std::stringstream ssHex;
+                ssHex << std::hex << std::uppercase << std::setfill('0');
+                do {
+                    if(currOffset + pos < fileSize) {
+                        u32 hDrawPos = 64 + (32 - (cols * cpad)) + ((pos % cols) * 2 * (8 + cpad)) + cpad;
+                        u8 symbol = localData[pos];
+                        if ((currOffset + pos >= markedOffset) && (currOffset + pos < markedOffset + markedLength)) {
+                            uiDrawRectangle(hDrawPos - 1, vDrawPos - 1, 2 + (2*8), 2 + 1 + 8, mr, mr, mr);
+                            uiDrawRectangle(gpu::BOTTOM_WIDTH - ((cols-(pos%cols))*8) - 1, vDrawPos - 1,
+                                2 + 8, 2 + 1 + 8, mr, mr, mr);
+                        }
+                        ssHex << std::setw(2) << (u32) symbol;
+                        gput::drawString(ssHex.str(), hDrawPos, vDrawPos, 8, 8);
+                        ssHex.str("");
+                        ssAscii << (((symbol != 0x00) && (symbol != 0x0A) && (symbol != 0x0D)) ? (char) symbol : (char) ' ');
+                    }
+                    pos++;
+                } while(pos % cols);
+                gput::drawString(ssAscii.str(), gpu::BOTTOM_WIDTH - (cols*8), vDrawPos, 8, 8, gr, gr, gr);
+            } else pos += cols;
+        }
+        
+        gpu::flushCommands();
+        for(int b = 0; b < 2; b++) { // fill both buffers
+            gpu::flushBuffer();
+            gpu::swapBuffers(true);
+        }
+        
+        return false;
+    };
     
     result = fsDataProvider(path, start, nShown,
         [&](u32 &offset, bool &forceRefresh) { // onLoop
             hid::poll();
             
-            if(hid::pressed(hid::BUTTON_B)) {
-                return true;
-            }
-
-            if(hid::held(hid::BUTTON_DOWN) || hid::held(hid::BUTTON_RIGHT)) {
-                if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
-                    offset += (hid::held(hid::BUTTON_L)) ?
-                        (hid::held(hid::BUTTON_RIGHT) ? fastMult * fastMult * nShown : fastMult * nShown) :
-                        (hid::held(hid::BUTTON_RIGHT) ? nShown : cols);
-                    if(offset > maxOffset) offset = maxOffset;
-                    currOffset = offset;
-                    lastScrollTime = core::time();
+            if(!selectMode) { // standard hexviewer mode
+                if(hid::pressed(hid::BUTTON_A)) {
+                    selectMode = true;
+                    selectButton = hid::BUTTON_NONE;
+                    markedOffset = offset;
+                    markedLength = 1;
+                } else if(hid::pressed(hid::BUTTON_B)) {
+                    return true;
                 }
-            } else if(hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_LEFT)) {
-                if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
-                    u32 sub = (hid::held(hid::BUTTON_L)) ?
-                        (hid::held(hid::BUTTON_LEFT) ? fastMult * fastMult * nShown : fastMult * nShown) :
-                        (hid::held(hid::BUTTON_LEFT) ? nShown : cols);
-                    offset = (offset > sub) ? offset - sub : 0;
-                    currOffset = offset;
-                    lastScrollTime = core::time();
+                if(hid::held(hid::BUTTON_DOWN) || hid::held(hid::BUTTON_RIGHT)) {
+                    if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
+                        offset += (hid::held(hid::BUTTON_L)) ?
+                            (hid::held(hid::BUTTON_RIGHT) ? fastMult * fastMult * nShown : fastMult * nShown) :
+                            (hid::held(hid::BUTTON_RIGHT) ? nShown : cols);
+                        if(offset > maxOffset) offset = maxOffset;
+                        currOffset = offset;
+                        lastScrollTime = core::time();
+                    }
+                } else if(hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_LEFT)) {
+                    if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
+                        u32 sub = (hid::held(hid::BUTTON_L)) ?
+                            (hid::held(hid::BUTTON_LEFT) ? fastMult * fastMult * nShown : fastMult * nShown) :
+                            (hid::held(hid::BUTTON_LEFT) ? nShown : cols);
+                        offset = (offset > sub) ? offset - sub : 0;
+                        currOffset = offset;
+                        lastScrollTime = core::time();
+                    }
+                } else if(lastScrollTime > 0) {
+                    lastScrollTime = 0;
                 }
-            } else if(lastScrollTime > 0) {
-                lastScrollTime = 0;
+            } else { // hexviewer select mode
+                if(hid::pressed(hid::BUTTON_A)) {
+                    selectOffset = markedOffset;
+                    markedLength = 1;
+                    selectButton = hid::BUTTON_A;
+                } /* else if (hid::pressed(hid::BUTTON_X)) {
+                    selectOffset = markedOffset;
+                    markedLength = 1;
+                    selectButton = hid::BUTTON_X;
+                }*/
+                if(hid::pressed(hid::BUTTON_B)) {
+                    selectMode = false;
+                    markedOffset = markedLength = 0;
+                    selectButton = hid::BUTTON_NONE;
+                }
+                if(hid::released(selectButton)) {
+                    if(onSelect) onSelect(markedOffset, markedLength, selectButton, forceRefresh);
+                    selectButton = hid::BUTTON_NONE;
+                    markedLength = 1;
+                }
+                if(hid::held(hid::BUTTON_DOWN) || hid::held(hid::BUTTON_RIGHT) || hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_LEFT)) {
+                    if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
+                        if(!hid::held(selectButton)) {
+                            markedLength = 1;
+                            if(hid::held(hid::BUTTON_DOWN))
+                                markedOffset += cols;
+                            else if(hid::held(hid::BUTTON_RIGHT))
+                                markedOffset++;
+                            else if(hid::held(hid::BUTTON_UP))
+                                markedOffset = (markedOffset >= cols) ? markedOffset - cols : 0;
+                            else if(hid::held(hid::BUTTON_LEFT))
+                                markedOffset = (markedOffset) ? markedOffset - 1 : 0;
+                            selectOffset = markedOffset;
+                        } else{ // selectOffset logic?
+                            u32 selectionEnd = (markedOffset < selectOffset) ?
+                                markedOffset : markedOffset + markedLength - 1;
+                            if(hid::held(hid::BUTTON_DOWN))
+                                selectionEnd += cols;
+                            else if(hid::held(hid::BUTTON_RIGHT))
+                                selectionEnd++;
+                            else if(hid::held(hid::BUTTON_UP))
+                                selectionEnd = (selectionEnd >= cols) ? selectionEnd - cols : 0;
+                            else if(hid::held(hid::BUTTON_LEFT))
+                                selectionEnd = (selectionEnd) ? selectionEnd - 1 : 0;
+                            if(selectionEnd < selectOffset) {
+                                if(selectOffset + 1 - (selectionEnd - (selectionEnd%cols)) > nShown) {
+                                    markedOffset = markedOffsetPrev;
+                                    markedLength = markedLengthPrev;
+                                } else {
+                                    markedOffset = selectionEnd;
+                                    markedLength = (selectOffset - selectionEnd) + 1;
+                                }
+                            } else {
+                                if((selectionEnd + cols - (selectionEnd%cols)) - selectOffset > nShown) {
+                                    markedOffset = markedOffsetPrev;
+                                    markedLength = markedLengthPrev;
+                                } else {
+                                    markedOffset = selectOffset;
+                                    markedLength = (selectionEnd - selectOffset) + 1;
+                                }
+                            }
+                        }
+                        offset = currOffset;
+                        lastScrollTime = core::time();
+                    }
+                } else if(lastScrollTime > 0) {
+                    lastScrollTime = 0;
+                }
             }
             
             if(onLoop != NULL) {
-                if(onLoop(offset, markedOffset, markedLength)) return true;
-                if((markedOffset != markedOffsetPrev) || (markedLength != markedLengthPrev)) {
-                    if(markedOffset + markedLength > fileSize)
-                        markedOffset = markedLength = 0;
-                    if(markedLength) {
-                        if(markedOffset < offset) {
-                            offset = markedOffset;
-                        }
-                        else if(markedOffset + markedLength > offset + nShown) {
-                            offset = (markedOffset + markedLength) - nShown + (cols - 1);
-                        }
-                    }
-                    markedOffsetPrev = markedOffset;
-                    markedLengthPrev = markedLength;
-                    forceRefresh = true;
-                }
+                if(onLoop(offset, markedOffset, markedLength, forceRefresh, selectMode)) return true;
                 if(currOffset != offset) {
                     if(offset > maxOffset) offset = maxOffset;
                     else offset -= offset % cols;
@@ -525,61 +640,35 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                 }
             }
             
+            if((markedOffset != markedOffsetPrev) || (markedLength != markedLengthPrev)) {
+                if(markedOffset + markedLength > fileSize) {
+                    if(markedOffset < fileSize)
+                        markedLength = fileSize - markedOffset;
+                    else markedOffset = markedLength = 0;
+                }
+                if(markedLength) {
+                    if(markedOffset < offset) {
+                        offset = markedOffset;
+                    } else if(markedOffset + markedLength > offset + nShown) {
+                        offset = (markedOffset + markedLength) - nShown + (cols - 1);
+                    }
+                }
+                markedOffsetPrev = markedOffset;
+                markedLengthPrev = markedLength;
+                if(currOffset != offset) {
+                    if(offset > maxOffset) offset = maxOffset;
+                    else offset -= offset % cols;
+                    currOffset = offset;
+                } else redrawHexView(NULL);
+            }
+            
             gpu::swapBuffers(true);
             
             return false;
         },
         [&](u8* data) { // onUpdate
-            const u8 gr = 0x9F;
-            const u8 mr = 0x4F;
-            
-            gpu::setViewport(gpu::SCREEN_BOTTOM, 0, 0, gpu::BOTTOM_WIDTH, gpu::BOTTOM_HEIGHT);
-            gput::setOrtho(0, gpu::BOTTOM_WIDTH, 0, gpu::BOTTOM_HEIGHT, -1, 1);
-            gpu::clear();
-            
-            uiDrawPositionBar(currOffset, nShown, fileSize);
-            
-            for(u32 pos = 0; pos < nShown; ) {
-                u32 vDrawPos = gpu::BOTTOM_HEIGHT - (((u32) (pos / cols) + 1) * (8 + (2*cpad))) + cpad;
-                
-                std::stringstream ssIndex;
-                ssIndex << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << (currOffset + pos);
-                gput::drawString(ssIndex.str(), 0, vDrawPos, 8, 8, gr, gr, gr);
-                
-                if(currOffset + pos < fileSize) {
-                    std::stringstream ssAscii;
-                    std::stringstream ssHex;
-                    ssHex << std::hex << std::uppercase << std::setfill('0');
-                    do {
-                        if(currOffset + pos < fileSize) {
-                            u32 hDrawPos = 64 + (32 - (cols * cpad)) + ((pos % cols) * 2 * (8 + cpad)) + cpad;
-                            u8 symbol = data[pos];
-                            if ((currOffset + pos >= markedOffset) && (currOffset + pos < markedOffset + markedLength)) {
-                                uiDrawRectangle(hDrawPos - 1, vDrawPos - 1, 2 + (2*8), 2 + 1 + 8, mr, mr, mr);
-                                uiDrawRectangle(gpu::BOTTOM_WIDTH - ((cols-(pos%cols))*8) - 1, vDrawPos - 1,
-                                    2 + 8, 2 + 1 + 8, mr, mr, mr);
-                            }
-                            ssHex << std::setw(2) << (u32) symbol;
-                            gput::drawString(ssHex.str(), hDrawPos, vDrawPos, 8, 8);
-                            ssHex.str("");
-                            ssAscii << (((symbol != 0x00) && (symbol != 0x0A) && (symbol != 0x0D)) ? (char) symbol : (char) ' ');
-                        }
-                        pos++;
-                    } while(pos % cols);
-                    gput::drawString(ssAscii.str(), gpu::BOTTOM_WIDTH - (cols*8), vDrawPos, 8, 8, gr, gr, gr);
-                } else pos += cols;
-            }
-            
-            gpu::flushCommands();
-            for(int b = 0; b < 2; b++) { // fill both buffers
-                gpu::flushBuffer();
-                gpu::swapBuffers(true);
-            }
-            
-            if((onUpdate != NULL) && onUpdate(currOffset)) {
+            if(redrawHexView(data) || ((onUpdate != NULL) && onUpdate(currOffset)))
                 return true;
-            }
-            
             return false;
         });
     

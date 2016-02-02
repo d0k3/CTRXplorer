@@ -150,6 +150,52 @@ u32 fsDataSearch(const std::string path, const std::vector<u8> searchTerm, const
     return offsetFound;
 }
 
+std::vector<u8> fsDataGet(const std::string path, u32 offset, u32 size) { 
+    // this is not intended to be used for large chunks of data
+    FILE* fp;
+    std::vector<u8> data;
+    u64 total = fsGetFileSize(path);
+    if(offset + size > total) {
+        errno = ENOTSUP;
+        return data;
+    }
+    fp = fopen(path.c_str(), "rb");
+    if(fp == NULL) return data;
+    fseek(fp, offset, SEEK_SET);
+    if((unsigned) ftell(fp) != offset) {
+        fclose(fp);
+        return data;
+    }
+    data.resize(size);
+    if(fread(data.data(), 1, size, fp) != size) {
+        data.clear();
+        fclose(fp);
+        return data;
+    }
+    fclose(fp);
+    return data;
+}
+
+bool fsDataReplace(const std::string path, const std::vector<u8> data, u32 offset, u32 size) {
+    FILE* fp;
+    bool ret = false;
+    u64 total = fsGetFileSize(path);
+    if((offset + size > total) || (data.size() != size)) {
+        errno = ENOTSUP;
+        return false;
+    }
+    fp = fopen(path.c_str(), "rb+");
+    if(fp == NULL) return false;
+    fseek(fp, offset, SEEK_SET);
+    if((unsigned) ftell(fp) != offset) {
+        fclose(fp);
+        return false;
+    }
+    ret = (fwrite(data.data(), 1, data.size(), fp) == data.size());
+    fclose(fp);
+    return ret;
+}
+
 bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset, bool &forceRefresh)> onLoop, std::function<bool(u8* data)> onUpdate) {
     if((onLoop == NULL) || (onUpdate == NULL)) {
         errno = ENOTSUP;
@@ -180,6 +226,7 @@ bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::funct
     while(core::running()) {
         if(((offset != offsetPrev) || forceRefresh) && (offset <= fileSize)) {
             if (forceRefresh) {
+                fflush(fp);
                 fseek(fp, offset, SEEK_SET);
                 fread(buffer, 1, buffSize, fp);
                 forceRefresh = false;
