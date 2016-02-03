@@ -447,7 +447,7 @@ bool uiFileBrowser(const std::string rootDirectory, const std::string startPath,
     return result;
 }
 
-bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset, u32 &markedOffset, u32 &markedLength, bool &forceRefresh, bool selectMode)> onLoop, std::function<bool(u32 offset)> onUpdate, std::function<bool(u32 selectedOffset, u32 selectedLength, hid::Button selectButton, bool &forceRefresh)> onSelect) {
+bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset, u32 &markedOffset, u32 &markedLength, bool selectMode)> onLoop, std::function<bool(u32 offset)> onUpdate, std::function<bool(u32 selectedOffset, u32 selectedLength, hid::Button selectButton, bool &updateData)> onSelect) {
     const u32 cpad = 2;
     
     const u32 rows = gpu::BOTTOM_HEIGHT / (8 + (2*cpad));
@@ -566,35 +566,38 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                     selectOffset = markedOffset;
                     markedLength = 1;
                     selectButton = hid::BUTTON_A;
-                } /* else if (hid::pressed(hid::BUTTON_X)) {
+                } else if(hid::pressed(hid::BUTTON_X)) {
                     selectOffset = markedOffset;
                     markedLength = 1;
                     selectButton = hid::BUTTON_X;
-                }*/
-                if(hid::pressed(hid::BUTTON_B)) {
+                } else if(hid::pressed(hid::BUTTON_Y)) {
+                    selectOffset = markedOffset;
+                    markedLength = 1;
+                    selectButton = hid::BUTTON_Y;
+                } else if(hid::released(selectButton)) {
+                    if(onSelect && onSelect(markedOffset, markedLength, selectButton, forceRefresh))
+                        return true;
+                    selectButton = hid::BUTTON_NONE;
+                    markedLength = 1;
+                } else if(hid::pressed(hid::BUTTON_B)) {
                     selectMode = false;
                     markedOffset = markedLength = 0;
                     selectButton = hid::BUTTON_NONE;
-                }
-                if(hid::released(selectButton)) {
-                    if(onSelect) onSelect(markedOffset, markedLength, selectButton, forceRefresh);
-                    selectButton = hid::BUTTON_NONE;
-                    markedLength = 1;
                 }
                 if(hid::held(hid::BUTTON_DOWN) || hid::held(hid::BUTTON_RIGHT) || hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_LEFT)) {
                     if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
                         if(!hid::held(selectButton)) {
                             markedLength = 1;
-                            if(hid::held(hid::BUTTON_DOWN))
+                            if(hid::held(hid::BUTTON_DOWN) && (markedOffset + cols < fileSize))
                                 markedOffset += cols;
-                            else if(hid::held(hid::BUTTON_RIGHT))
+                            else if(hid::held(hid::BUTTON_RIGHT) && (markedOffset + 1 < fileSize))
                                 markedOffset++;
-                            else if(hid::held(hid::BUTTON_UP))
-                                markedOffset = (markedOffset >= cols) ? markedOffset - cols : 0;
-                            else if(hid::held(hid::BUTTON_LEFT))
-                                markedOffset = (markedOffset) ? markedOffset - 1 : 0;
+                            else if(hid::held(hid::BUTTON_UP) && (markedOffset >= cols))
+                                markedOffset -= cols;
+                            else if(hid::held(hid::BUTTON_LEFT) && markedOffset)
+                                markedOffset--;
                             selectOffset = markedOffset;
-                        } else{ // selectOffset logic?
+                        } else{
                             u32 selectionEnd = (markedOffset < selectOffset) ?
                                 markedOffset : markedOffset + markedLength - 1;
                             if(hid::held(hid::BUTTON_DOWN))
@@ -623,7 +626,6 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                                 }
                             }
                         }
-                        offset = currOffset;
                         lastScrollTime = core::time();
                     }
                 } else if(lastScrollTime > 0) {
@@ -631,14 +633,15 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                 }
             }
             
-            if(onLoop != NULL) {
-                if(onLoop(offset, markedOffset, markedLength, forceRefresh, selectMode)) return true;
-                if(currOffset != offset) {
-                    if(offset > maxOffset) offset = maxOffset;
-                    else offset -= offset % cols;
-                    currOffset = offset;
-                }
+            if(forceRefresh) {
+                fileSize = fsGetFileSize(path);
+                maxOffset = (fileSize <= nShown) ? 0 :
+                    ((fileSize % cols) ? fileSize + (cols - (fileSize % cols)) - nShown : fileSize - nShown);
+                if(offset > maxOffset) offset = maxOffset;
             }
+            
+            if(onLoop && onLoop(offset, markedOffset, markedLength, selectMode))
+                return true;
             
             if((markedOffset != markedOffsetPrev) || (markedLength != markedLengthPrev)) {
                 if(markedOffset + markedLength > fileSize) {
@@ -655,11 +658,14 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                 }
                 markedOffsetPrev = markedOffset;
                 markedLengthPrev = markedLength;
-                if(currOffset != offset) {
-                    if(offset > maxOffset) offset = maxOffset;
-                    else offset -= offset % cols;
-                    currOffset = offset;
-                } else redrawHexView(NULL);
+                if(currOffset == offset)
+                    redrawHexView(NULL);
+            }
+            
+            if(currOffset != offset) {
+                if(offset > maxOffset) offset = maxOffset;
+                else offset -= offset % cols;
+                currOffset = offset;
             }
             
             gpu::swapBuffers(true);
@@ -667,7 +673,7 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
             return false;
         },
         [&](u8* data) { // onUpdate
-            if(redrawHexView(data) || ((onUpdate != NULL) && onUpdate(currOffset)))
+            if(redrawHexView(data) || (onUpdate && onUpdate(currOffset)))
                 return true;
             return false;
         });

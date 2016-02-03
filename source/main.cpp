@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     
-    const std::string title = "CTRX SD Explorer v0.9.0beta";
+    const std::string title = "CTRX SD Explorer v0.9.2beta";
     const u64 tapDelay = 240;
 
     bool launcher = core::launcher();
@@ -58,6 +58,7 @@ int main(int argc, char **argv) {
     std::string hvLastSearchStr = "?";
     std::vector<u8> hvLastSearchHex(1, 0);
     std::vector<u8> hvLastSearch(1, 0);
+    std::vector<u8> hvClipboard;
     
     auto processAction = [&](Action action, bool &updateList, bool &resetCursor) {
         const std::string alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]'`^,~!@#$%&0123456789=+-_.";
@@ -208,7 +209,7 @@ int main(int argc, char **argv) {
         stream << "X - [t] DELETE / [h] RENAME selected" << "\n";
         if(clipboard.empty()) stream << "Y - COPY/MOVE selected " <<  (((*markedElements).size() > 1) ? "files" : "file") << "\n";
         else stream << "Y - [t] COPY / [h] MOVE to this folder" << "\n";
-        if(clipboard.size() > 0) stream << "SELECT - Clear Clipboard" << "\n";
+        if(clipboard.size()) stream << "SELECT - Clear Clipboard" << "\n";
         
         return stream.str();
     };
@@ -233,7 +234,14 @@ int main(int argc, char **argv) {
     auto instructionBlockHexEditor = [&]() {
         std::stringstream stream;
         stream << "A - [h] ("  << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") / [t] EDIT data" << "\n";
+        stream << "X - [h] ("  << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") / [t] DELETE data" << "\n";
+        if(hvClipboard.empty()) {
+            stream << "Y - [h] ("  << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") / [t] COPY data" << "\n";
+        } else {
+            stream << "Y - [h] ("  << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") / [t] PASTE data" << "\n";
+        }
         stream << "B - Exit EDIT mode" << "\n";
+        if(hvClipboard.size()) stream << "SELECT - Clear Paste Data" << "\n";
         
         return stream.str();
     };
@@ -336,11 +344,11 @@ int main(int argc, char **argv) {
                 while(core::running() && hid::held(hid::BUTTON_R)) {
                     if(hid::held(hid::BUTTON_DOWN) || hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_LEFT) || hid::held(hid::BUTTON_RIGHT)) {
                         if(lastChangeTime == 0 || core::time() - lastChangeTime >= scrollDelay) {
-                            if(hid::held(hid::BUTTON_DOWN)) {
+                            if(hid::held(hid::BUTTON_DOWN) && dummySize) {
                                 dummyContent--;
                                 if(dummyContent < 0x00) dummyContent = 0x100;
                             }
-                            if(hid::held(hid::BUTTON_UP)) {
+                            if(hid::held(hid::BUTTON_UP) && dummySize) {
                                 dummyContent++;
                                 if(dummyContent > 0x100) dummyContent = 0x00;
                             }
@@ -504,6 +512,11 @@ int main(int argc, char **argv) {
                 }
                 inputYHoldTime = 0;
             }
+        } else {
+            // SELECT - CLEAR PASTE DATA
+            if(hid::pressed(hid::BUTTON_SELECT)) {
+                hvClipboard.clear();
+            }
         }
         
         return breakLoop;
@@ -512,19 +525,41 @@ int main(int argc, char **argv) {
     auto onSelectHexViewer = [&](u32 selectedOffset, u32 selectedLength, hid::Button selectButton, bool &forceRefresh) {
         bool breakLoop = false;
         
-        // A - EDIT DATA
-        if(selectButton == hid::BUTTON_A) {
+        if(selectButton == hid::BUTTON_A) { // A - EDIT DATA
             std::string confirmMsg = "Enter new hex value(s) below:\n";
-            std::vector<u8> selected = fsDataGet(currentFile.id, selectedOffset, selectedLength);
-            if(selected.size() != selectedLength) {
+            std::vector<u8> input = fsDataGet(currentFile.id, selectedOffset, selectedLength);
+            if(input.size() != selectedLength) {
                 uiErrorPrompt(gpu::SCREEN_TOP, "Reading", currentFile.id, true, false);
             } else {
-                selected = uiDataInput(gpu::SCREEN_TOP, selected, confirmMsg, 0);
-                if(!selected.empty() && !fsDataReplace(currentFile.id, selected, selectedOffset, selectedLength))
+                input = uiDataInput(gpu::SCREEN_TOP, input, confirmMsg, true);
+                if(!input.empty() && (input.size() != selectedLength) &&
+                    !uiPrompt(gpu::SCREEN_TOP, "Warning: This will change file size.\n", true));
+                else if(!input.empty() && !fsDataReplace(currentFile.id, input, selectedOffset, selectedLength))
                     uiErrorPrompt(gpu::SCREEN_TOP, "Writing", currentFile.id, true, false);
                 else forceRefresh = true;
             }
+        } else if(selectButton == hid::BUTTON_X) { // X - DELETE DATA
+            if(uiPrompt(gpu::SCREEN_TOP, "Warning: This will remove data\nand change file size.\n", true)) {
+                if(!fsFileResize(currentFile.id, selectedOffset, selectedLength, 0, true))
+                    uiErrorPrompt(gpu::SCREEN_TOP, "Resizing", currentFile.id, true, false);
+                else forceRefresh = true;
+            }
+        } else if((selectButton == hid::BUTTON_Y) && hvClipboard.empty()) { // Y - COPY DATA
+            hvClipboard = fsDataGet(currentFile.id, selectedOffset, selectedLength);
+            if(hvClipboard.size() != selectedLength)
+                uiErrorPrompt(gpu::SCREEN_TOP, "Reading", currentFile.id, true, false);
+        } else if((selectButton == hid::BUTTON_Y) && !hvClipboard.empty()) { // Y - PASTE DATA
+            std::string confirmMsg = "Edit paste data below:\n";
+            std::vector<u8> input = uiDataInput(gpu::SCREEN_TOP, hvClipboard, confirmMsg, true);
+            if(!input.empty() && (input.size() != selectedLength) &&
+                !uiPrompt(gpu::SCREEN_TOP, "Warning: This will change file size.\n", true));
+            else if(!input.empty() && !fsDataReplace(currentFile.id, input, selectedOffset, selectedLength))
+                uiErrorPrompt(gpu::SCREEN_TOP, "Writing", currentFile.id, true, false);
+            else forceRefresh = true;
         }
+        
+        if(forceRefresh)
+            currentFile.details.at(2) = uiFormatBytes((u64) fsGetFileSize(currentFile.id)); 
         
         return breakLoop;
     };
@@ -535,7 +570,7 @@ int main(int argc, char **argv) {
             hvStoredOffset = (u32) -1;
             currentFile.details.insert(currentFile.details.begin(), "@FFFFFFFF (-1)");
             if(!uiHexViewer(currentFile.id, 0,
-                [&](u32 &offset, u32 &markedOffset, u32 &markedLength, bool &forceRefresh, bool selectMode) { // onLoop
+                [&](u32 &offset, u32 &markedOffset, u32 &markedLength, bool selectMode) { // onLoop
                     if(hvSelectMode != selectMode) hvSelectMode = selectMode;
                     return onLoopHexViewer(offset, markedOffset, markedLength);
                 },

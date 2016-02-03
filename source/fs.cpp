@@ -114,7 +114,64 @@ u32 fsGetFileSize(const std::string path) {
     return (u32) st.st_size;
 }
 
-u32 fsDataSearch(const std::string path, const std::vector<u8> searchTerm, const u32 offset, bool showProgress) {
+bool fsFileResize(const std::string path, u32 offset, u32 oldsize, u32 newsize, bool showProgress) {
+    if(newsize == oldsize) return true;
+    
+    bool ret = true;
+    u64 total = fsGetFileSize(path);
+    size_t l_bufsiz = (total - (offset + oldsize) < CTRX_BUFSIZ) ?
+        total - (offset + oldsize) : CTRX_BUFSIZ;
+    u8* buffer = (u8*) malloc( l_bufsiz );
+    FILE* fp = fopen(path.c_str(), "rb+");;
+    
+    if(offset + oldsize > total) {
+        errno = ENOTSUP;
+        ret = false;
+    }
+    
+    if(ret && (fp != NULL) && (buffer != NULL)) {
+        size_t l_size = l_bufsiz; // don't change this
+        if(newsize > oldsize) { // increase file size
+            ret = (ftruncate(fileno(fp), total + newsize - oldsize) == 0);
+            for (u32 rpos = total; ret && (rpos > offset + oldsize); ) {
+                if(showProgress && !fsShowProgress("Inflating", path, total - rpos, total)) {
+                    errno = ECANCELED;
+                    ret = false;
+                    break;
+                }
+                l_size = ((rpos - (offset + oldsize)) > l_bufsiz) ? l_bufsiz : rpos - (offset + oldsize);
+                rpos -= l_size;
+                u32 wpos = rpos + newsize - oldsize;
+                ret = ret && (fseek(fp, rpos, SEEK_SET) == 0);
+                ret = ret && (fread(buffer, 1, l_size, fp) == l_size);
+                ret = ret && (fseek(fp, wpos, SEEK_SET) == 0);
+                ret = ret && (fwrite(buffer, 1, l_size, fp) == l_size);
+            }
+        } else { // truncate file
+            for (u32 rpos = offset + oldsize; ret && (rpos < total); rpos += l_size) {
+                u32 wpos = rpos + newsize - oldsize;
+                l_size = ((total - rpos) > l_bufsiz) ? l_bufsiz : total - rpos;
+                if(showProgress && !fsShowProgress("Deflating", path, rpos, total)) {
+                    errno = ECANCELED;
+                    ret = false;
+                    break;
+                }
+                ret = ret && (fseek(fp, rpos, SEEK_SET) == 0);
+                ret = ret && (fread(buffer, 1, l_size, fp) == l_size);
+                ret = ret && (fseek(fp, wpos, SEEK_SET) == 0);
+                ret = ret && (fwrite(buffer, 1, l_size, fp) == l_size);
+            }
+            ret = (ftruncate(fileno(fp), total + newsize - oldsize) == 0);
+        }
+    } else ret = false;
+    
+    if(buffer != NULL) free(buffer);
+    if(fp != NULL) fclose(fp);
+    
+    return ret;
+}
+
+u32 fsDataSearch(const std::string path, const std::vector<u8> searchTerm, u32 offset, bool showProgress) {
     u64 total = fsGetFileSize(path);
     u64 totalPlus = total + searchTerm.size() - 1;
     u32 offsetFound = (u32) -1;
@@ -180,10 +237,12 @@ bool fsDataReplace(const std::string path, const std::vector<u8> data, u32 offse
     FILE* fp;
     bool ret = false;
     u64 total = fsGetFileSize(path);
-    if((offset + size > total) || (data.size() != size)) {
+    if(offset + size > total) {
         errno = ENOTSUP;
         return false;
     }
+    if((data.size() != size) && !fsFileResize(path, offset, size, data.size(), true))
+        return false;
     fp = fopen(path.c_str(), "rb+");
     if(fp == NULL) return false;
     fseek(fp, offset, SEEK_SET);
@@ -226,7 +285,11 @@ bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::funct
     while(core::running()) {
         if(((offset != offsetPrev) || forceRefresh) && (offset <= fileSize)) {
             if (forceRefresh) {
-                fflush(fp);
+                fclose(fp);
+                fileSize = fsGetFileSize(path);
+                fp = fopen(path.c_str(), "rb");
+                if(fp == NULL) break;
+                if(offset > fileSize) offset = fileSize;
                 fseek(fp, offset, SEEK_SET);
                 fread(buffer, 1, buffSize, fp);
                 forceRefresh = false;
@@ -317,7 +380,7 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
                 }
             }
             ret = ret && (pos == total);
-        }
+        } else ret = false;
         if(buffer != NULL) free(buffer);
         if(fp != NULL) fclose(fp);
         if(fd != NULL) fclose(fd);
