@@ -17,7 +17,7 @@
 
 using namespace ctr;
 
-#define CTRX_BUFSIZ (4 * 1024 * 1024)
+#define CTRX_BUFSIZ (1 * 1024 * 1024)
 
 struct fsAlphabetizeFoldersFiles {
     inline bool operator()(FileInfoEx a, FileInfoEx b) {

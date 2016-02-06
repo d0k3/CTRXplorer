@@ -25,6 +25,7 @@ std::string uiTruncateString(const std::string str, int nsize, int pos);
 std::string uiFormatBytes(u64 bytes);
 bool uiFileBrowser(const std::string rootDirectory, const std::string startPath, std::function<bool(bool &updateList, bool &resetCursorOnUpdate)> onLoop, std::function<void(SelectableElement* entry)> onUpdateEntry, std::function<void(std::string* currDir)> onUpdateDir, std::function<void(std::set<SelectableElement*>* marked)> onUpdateMarked, std::function<bool(std::string selectedPath, bool &updateList)> onSelect, bool useTopScreen = false);
 bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offset, u32 &markedOffset, u32 &markedLength, bool selectMode)> onLoop, std::function<bool(u32 offset)> onUpdate, std::function<bool(u32 selectedOffset, u32 selectedLength, ctr::hid::Button selectButton, bool &updateData)> onSelect);
+bool uiTextViewer(const std::string path, std::function<bool(u32 offset, u32 &markedOffset, u32 &markedLength, bool selectMode)> onLoop, std::function<bool(u32 offset)> onUpdate, std::function<bool(u32 selectedOffset, u32 selectedLength, ctr::hid::Button selectButton, bool &updateData)> onSelect);
 void uiDisplayMessage(ctr::gpu::Screen screen, const std::string message);
 bool uiPrompt(ctr::gpu::Screen screen, const std::string message, bool question);
 bool uiErrorPrompt(ctr::gpu::Screen screen, const std::string operationStr, const std::string detailStr, bool checkErrno, bool question);

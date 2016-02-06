@@ -14,7 +14,8 @@ using namespace ctr;
 
 typedef enum {
     M_BROWSER,
-    M_HEXVIEWER
+    M_HEXVIEWER,
+    M_TEXTVIEWER
 } Mode;
 
 typedef enum  {
@@ -209,6 +210,7 @@ int main(int argc, char **argv) {
         stream << "X - [t] DELETE / [h] RENAME selected" << "\n";
         if(clipboard.empty()) stream << "Y - COPY/MOVE selected " <<  (((*markedElements).size() > 1) ? "files" : "file") << "\n";
         else stream << "Y - [t] COPY / [h] MOVE to this folder" << "\n";
+        stream << "A - VIEW file in [t] hex / [h] text" << "\n";
         if(clipboard.size()) stream << "SELECT - Clear Clipboard" << "\n";
         
         return stream.str();
@@ -241,7 +243,16 @@ int main(int argc, char **argv) {
             stream << "Y - [h] ("  << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") / [t] PASTE data" << "\n";
         }
         stream << "B - Exit EDIT mode" << "\n";
-        if(hvClipboard.size()) stream << "SELECT - Clear Paste Data" << "\n";
+        if(hvClipboard.size()) stream << "SELECT - Clear paste data" << "\n";
+        
+        return stream.str();
+    };
+    
+    auto instructionBlockTextViewer = [&]() {
+        std::stringstream stream;
+        stream << "L/R - PAGE up / PAGE down" << "\n";
+        stream << "X - Enable / disable wordwrap" << "\n";
+        stream << "B - Exit to file browser" << "\n";
         
         return stream.str();
     };
@@ -306,8 +317,10 @@ int main(int argc, char **argv) {
         }
         
         // INSTRUCTIONS BLOCK
-        str = title + "\n" + ((mode == M_BROWSER) ? instructionBlockBrowser() :
-            ((hvSelectMode) ? instructionBlockHexEditor() : instructionBlockHexViewer()));
+        str = title + "\n";
+        if(mode == M_BROWSER) str += instructionBlockBrowser();
+        else if(mode == M_HEXVIEWER) str += (hvSelectMode) ? instructionBlockHexEditor() : instructionBlockHexViewer();
+        else if(mode == M_TEXTVIEWER) str += instructionBlockTextViewer();
         if(launcher) str += "START - Exit to launcher\n";
         gput::drawString(str, (screenWidth - 320) / 2, 4, 8, 8);
         
@@ -522,6 +535,20 @@ int main(int argc, char **argv) {
         return breakLoop;
     };
     
+    auto onLoopTextViewer = [&](u32 &offset, u32 &markedOffset, u32 &markedLength) {
+        bool breakLoop = false;
+        
+        onLoopDisplay();
+        
+        // START - EXIT TO HB LAUNCHER
+        if(hid::pressed(hid::BUTTON_START) && launcher) {
+            exit = true;
+            return true;
+        }
+        
+        return breakLoop;
+    };
+    
     auto onSelectHexViewer = [&](u32 selectedOffset, u32 selectedLength, hid::Button selectButton, bool &forceRefresh) {
         bool breakLoop = false;
         
@@ -587,6 +614,22 @@ int main(int argc, char **argv) {
                 uiErrorPrompt(gpu::SCREEN_TOP, "Hexview", currentFile.name, true, false);
             }
             mode = M_BROWSER;
+        } else if(mode == M_TEXTVIEWER) {
+            currentFile.details.insert(currentFile.details.begin(), "@FFFFFFFF (-1)");
+            if(!uiTextViewer(currentFile.id,
+                [&](u32 offset, u32 &markedOffset, u32 &markedLength, bool selectMode) { // onLoop
+                    if(hvSelectMode != selectMode) hvSelectMode = selectMode;
+                    return onLoopTextViewer(offset, markedOffset, markedLength);
+                },
+                [&](u32 offset) { // onUpdate
+                    std::stringstream ssOffset;
+                    ssOffset << "@" << std::setfill('0') << std::uppercase;
+                    ssOffset << std::hex << std::setw(8) << offset << " (" << std::dec << offset << ")";
+                    currentFile.details.at(0) = ssOffset.str();
+                    return false;
+                }, NULL))
+                uiErrorPrompt(gpu::SCREEN_TOP, "Textview", currentFile.name, true, false);
+            mode = M_BROWSER;
         } else {
             uiFileBrowser( "sdmc:/", currentFile.id,
                 [&](bool &updateList, bool &resetCursor) { // onLoop function
@@ -602,7 +645,11 @@ int main(int argc, char **argv) {
                     markedElements = marked;
                 },
                 [&](std::string selectedPath, bool &updateList) { // onSelect function
-                    mode = M_HEXVIEWER;
+                    u64 inputAHoldTime = core::time();
+                    for (hid::poll();
+                        hid::held(hid::BUTTON_A) && core::time() - inputAHoldTime < tapDelay;
+                        hid::poll()) gpu::swapBuffers(true);
+                    mode = (core::time() - inputAHoldTime >= tapDelay) ? M_TEXTVIEWER : M_HEXVIEWER;
                     return true;
                 });
         }
