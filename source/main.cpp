@@ -228,7 +228,6 @@ int main(int argc, char **argv) {
         if (hvLastFoundOffset == (u32) -1) stream << "Y - SEARCH ... ([t] hex / [h] string)" << "\n";
         else stream << "Y - SEARCH [t] next / [h] new" << "\n";
         stream << "A - Enter EDIT mode" << "\n";
-        stream << "B - Exit to file browser" << "\n";
         
         return stream.str();
     };
@@ -242,7 +241,6 @@ int main(int argc, char **argv) {
         } else {
             stream << "Y - [h] ("  << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") / [t] PASTE data" << "\n";
         }
-        stream << "B - Exit EDIT mode" << "\n";
         if(hvClipboard.size()) stream << "SELECT - Clear paste data" << "\n";
         
         return stream.str();
@@ -252,7 +250,6 @@ int main(int argc, char **argv) {
         std::stringstream stream;
         stream << "L/R - PAGE up / PAGE down" << "\n";
         stream << "X - Enable / disable wordwrap" << "\n";
-        stream << "B - Exit to file browser" << "\n";
         
         return stream.str();
     };
@@ -535,7 +532,7 @@ int main(int argc, char **argv) {
         return breakLoop;
     };
     
-    auto onLoopTextViewer = [&](u32 &offset, u32 &markedOffset, u32 &markedLength) {
+    auto onLoopTextViewer = [&]() {
         bool breakLoop = false;
         
         onLoopDisplay();
@@ -615,19 +612,16 @@ int main(int argc, char **argv) {
             }
             mode = M_BROWSER;
         } else if(mode == M_TEXTVIEWER) {
-            currentFile.details.insert(currentFile.details.begin(), "@FFFFFFFF (-1)");
-            if(!uiTextViewer(currentFile.id,
-                [&](u32 offset, u32 &markedOffset, u32 &markedLength, bool selectMode) { // onLoop
-                    if(hvSelectMode != selectMode) hvSelectMode = selectMode;
-                    return onLoopTextViewer(offset, markedOffset, markedLength);
-                },
-                [&](u32 offset) { // onUpdate
+            currentFile.details.insert(currentFile.details.begin(), "@FFFFFFFF+F (-1+-1)");
+            if(!uiTextViewer(currentFile.id, onLoopTextViewer,
+                [&](u32 offset, u32 plus) { // onUpdate
                     std::stringstream ssOffset;
                     ssOffset << "@" << std::setfill('0') << std::uppercase;
-                    ssOffset << std::hex << std::setw(8) << offset << " (" << std::dec << offset << ")";
+                    ssOffset << std::hex << std::setw(8) << offset << "+" << plus;
+                    ssOffset << " (" << std::dec << offset << "+" << plus << ")";
                     currentFile.details.at(0) = ssOffset.str();
                     return false;
-                }, NULL))
+                }))
                 uiErrorPrompt(gpu::SCREEN_TOP, "Textview", currentFile.name, true, false);
             mode = M_BROWSER;
         } else {

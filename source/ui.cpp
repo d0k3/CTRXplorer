@@ -66,23 +66,31 @@ void uiDrawRectangle(int x, int y, u32 width, u32 height, u8 red, u8 green, u8 b
     gput::drawString(std::string(1, 0xDB), x, y, width, height, red, green, blue, alpha);
 }
 
-void uiDrawPositionBar(u32 pos, u32 nShown, u32 total) {
+void uiDrawPositionBar(u32 pos, u32 nShown, u32 total, bool use_bottom) {
     const u32 barMinHeight = 32;
     const u32 barWidth = 2;
     const u8 gr = 0x4F;
     
-    if ((pos > total) || (nShown >= total)) return;
+    if ((pos >= total) || (nShown >= total)) return;
     
     u32 screenWidth;
     u32 screenHeight;
     gpu::getViewportWidth(&screenWidth);
     gpu::getViewportHeight(&screenHeight);
     
-    u32 barHeight = (nShown * screenHeight) / total;
-    if (barHeight < barMinHeight) barHeight = barMinHeight;
-    u32 barPos = (screenHeight - barHeight) - (((u64) pos * (screenHeight - barHeight)) / (total - nShown));
-    
-    uiDrawRectangle(screenWidth - barWidth, barPos, barWidth, barHeight, gr, gr, gr);
+    if(!use_bottom) {
+        u32 barHeight = (nShown * screenHeight) / total;
+        if (barHeight < barMinHeight) barHeight = barMinHeight;
+        u32 barPos = (screenHeight - barHeight) - (((u64) pos * (screenHeight - barHeight)) / (total - nShown));
+        
+        uiDrawRectangle(screenWidth - barWidth, barPos, barWidth, barHeight, gr, gr, gr);
+    } else {
+        u32 barHeight = (nShown * screenWidth) / total;
+        if (barHeight < barMinHeight) barHeight = barMinHeight;
+        u32 barPos = ((u64) pos * (screenWidth - barHeight)) / (total - nShown);
+        
+        uiDrawRectangle(barPos, 0, barHeight, barWidth, gr, gr, gr);
+    }
 }
 
 std::string uiTruncateString(const std::string str, int nsize, int pos) {
@@ -681,13 +689,12 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
     return result;
 }
 
-bool uiTextViewer(const std::string path, std::function<bool(u32 offset, u32 &markedOffset, u32 &markedLength, bool selectMode)> onLoop, std::function<bool(u32 offset)> onUpdate, std::function<bool(u32 selectedOffset, u32 selectedLength, hid::Button selectButton, bool &updateData)> onSelect) {
+bool uiTextViewer(const std::string path, std::function<bool(void)> onLoop, std::function<bool(u32 offset, u32 plus)> onUpdate) {
     const u32 nLinesDisp = gpu::BOTTOM_HEIGHT / 8;
     const u32 nCharsDisp = gpu::BOTTOM_WIDTH / 8;
-    const u32 lineLenMax = 4 * 1024; // careful, this is a sensitive value
-    const u32 bufsizeMax = 8 * nLinesDisp * lineLenMax; // see above
-    
-    bool result;
+    const u32 lineLenMax = 1 * 1024; // careful, this is a sensitive value
+    const u32 bufsizeMax = 16 * nLinesDisp * lineLenMax; // see above
+    const u32 safeSize = 2 * lineLenMax * nLinesDisp;
     
     u64 lastScrollTime = 0;
     
@@ -702,19 +709,12 @@ bool uiTextViewer(const std::string path, std::function<bool(u32 offset, u32 &ma
     u32 offsetDisp = 0;
     u32 offsetDispPrev = (u32) -1;
     u32 charIndex = 0;
+    u32 charIndexPrev = (u32) -1;
     u32 lineIndex = 0;
     u32 lineIndexMax = 0;
     u32 lineLenCurr = lineLenMax;
     
-    bool selectMode = false;
-    hid::Button selectButton = hid::BUTTON_NONE;
-    u32 selectOffset = 0;
-    u32 markedOffset = 0;
-    u32 markedLength = 0;
-    u32 markedLineOffset = 0;
-    u32 markedOffsetPrev = 0;
-    u32 markedLengthPrev = 0;
-    
+    // MAP LINE OFFSETS IN BUFFER
     auto buildBufferMap = [&](void) {
         bufferMap.clear();
         // build line offset list
@@ -746,87 +746,52 @@ bool uiTextViewer(const std::string path, std::function<bool(u32 offset, u32 &ma
             (offsetDisp - offsetBuff < bufferMap.at(lineIndex - 1)); lineIndex--);
     };
     
-    result = fsDataProvider(path, 0, bufsize,
+    bool result = fsDataProvider(path, 0, bufsize,
         [&](u32 &offset, bool &forceRefresh) { // onLoop
-            // const u8 gr = 0x9F;
-            // const u8 mr = 0x4F;
-            
             if(offsetBuff != offset) {
                 offsetBuff = offset;
-                if(localData != NULL) buildBufferMap();
+                buildBufferMap();
             }
             
-            hid::poll();
+            hid::poll();   
             
-            if(!selectMode) { // standard textviewer mode
-                if(hid::pressed(hid::BUTTON_A)) {
-                    // selectMode = true;
-                    selectButton = hid::BUTTON_NONE;
-                    markedOffset = offset;
-                    markedLength = 1;
-                } else if(hid::pressed(hid::BUTTON_B)) {
-                    return true;
-                } else if(hid::pressed(hid::BUTTON_X)) {
-                    lineLenCurr = (lineLenCurr == lineLenMax) ? nCharsDisp : lineLenMax;
-                    charIndex = 0;
-                    buildBufferMap();
-                }
-                if(hid::held(hid::BUTTON_LEFT) || hid::held(hid::BUTTON_RIGHT) ||
-                   hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_DOWN) ||
-                   hid::held(hid::BUTTON_L) || hid::held(hid::BUTTON_R)) {
-                    if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
-                        if(hid::held(hid::BUTTON_DOWN) && (lineIndex < lineIndexMax)) {
-                            lineIndex++;
-                        } else if(hid::held(hid::BUTTON_UP) && (lineIndex > 0)) {
-                            lineIndex--;
-                        } else if(hid::held(hid::BUTTON_R)) {
-                            lineIndex = (lineIndex < lineIndexMax - nLinesDisp) ?
-                                lineIndex + nLinesDisp : lineIndexMax;
-                        } else if(hid::held(hid::BUTTON_L)) {
-                            lineIndex = (lineIndex > nLinesDisp) ?
-                                lineIndex - nLinesDisp : 0;
-                        } else if(hid::held(hid::BUTTON_RIGHT) && (charIndex + nCharsDisp < lineLenCurr)) {
-                            charIndex++;
-                        } else if(hid::held(hid::BUTTON_LEFT) && (charIndex)) {
-                            charIndex--;
-                        }
-                        lastScrollTime = core::time();
+            // ONLOOP FUNCTION
+            if(onLoop && onLoop()) return true;
+            
+            // PROCESS INPUT
+            if(hid::pressed(hid::BUTTON_B)) {
+                return true;
+            } else if(hid::pressed(hid::BUTTON_X)) {
+                lineLenCurr = (lineLenCurr == lineLenMax) ? nCharsDisp : lineLenMax;
+                charIndex = 0;
+                buildBufferMap();
+            }
+            if(hid::held(hid::BUTTON_LEFT) || hid::held(hid::BUTTON_RIGHT) ||
+               hid::held(hid::BUTTON_UP) || hid::held(hid::BUTTON_DOWN) ||
+               hid::held(hid::BUTTON_L) || hid::held(hid::BUTTON_R)) {
+                if(lastScrollTime == 0 || core::time() - lastScrollTime >= 120) {
+                    if(hid::held(hid::BUTTON_DOWN) && (lineIndex < lineIndexMax)) {
+                        lineIndex++;
+                    } else if(hid::held(hid::BUTTON_UP) && (lineIndex > 0)) {
+                        lineIndex--;
+                    } else if(hid::held(hid::BUTTON_R)) {
+                        lineIndex = (lineIndex < lineIndexMax - nLinesDisp) ?
+                            lineIndex + nLinesDisp : lineIndexMax;
+                    } else if(hid::held(hid::BUTTON_L)) {
+                        lineIndex = (lineIndex > nLinesDisp) ?
+                            lineIndex - nLinesDisp : 0;
+                    } else if(hid::held(hid::BUTTON_RIGHT) && (charIndex + nCharsDisp < lineLenCurr)) {
+                        charIndex++;
+                    } else if(hid::held(hid::BUTTON_LEFT) && (charIndex)) {
+                        charIndex--;
                     }
-                } else if(lastScrollTime > 0) {
-                    lastScrollTime = 0;
+                    lastScrollTime = core::time();
                 }
-            } else { // textviewer select mode
-                /*if(hid::pressed(hid::BUTTON_A)) {
-                    selectOffset = markedOffset;
-                    markedLength = 1;
-                    selectButton = hid::BUTTON_A;
-                } else if(hid::pressed(hid::BUTTON_X)) {
-                    selectOffset = markedOffset;
-                    markedLength = 1;
-                    selectButton = hid::BUTTON_X;
-                } else if(hid::pressed(hid::BUTTON_Y)) {
-                    selectOffset = markedOffset;
-                    markedLength = 1;
-                    selectButton = hid::BUTTON_Y;
-                } else if(hid::released(selectButton)) {
-                    if(onSelect && onSelect(markedOffset, markedLength, selectButton, forceRefresh))
-                        return true;
-                    selectButton = hid::BUTTON_NONE;
-                    markedLength = 1;
-                } else*/ if(hid::pressed(hid::BUTTON_B)) {
-                    selectMode = false;
-                    markedOffset = markedLength = 0;
-                    selectButton = hid::BUTTON_NONE;
-                }
+            } else if(lastScrollTime > 0) {
+                lastScrollTime = 0;
             }
             
-            /*if(forceRefresh) {
-                fileSize = fsGetFileSize(path);
-                maxOffset = (fileSize <= nShown) ? 0 :
-                    ((fileSize % cols) ? fileSize + (cols - (fileSize % cols)) - nShown : fileSize - nShown);
-                if(offset > maxOffset) offset = maxOffset;
-            }*/
-            
+            // BUILD STRING TO DISPLAY ON SCREEN
             std::string dispString;
             u32 dispStart = (lineIndex) ? bufferMap.at(lineIndex - 1) : 0;
             u32 lineStart = dispStart;
@@ -847,26 +812,28 @@ bool uiTextViewer(const std::string path, std::function<bool(u32 offset, u32 &ma
             }
             u32 dispEnd = lineStart;
             
+            // BUFFER CHECK (RELOAD IF RUNNING OUT)
             if(fileSize > bufsize) { // no need if the whole file fits into the buffer
-                if((dispStart < 2 * lineLenMax * nLinesDisp) || (bufsize - dispStart < 2 * lineLenMax * nLinesDisp))
+                if((dispStart < safeSize) || (bufsize - dispStart < safeSize))
                     offset = (offsetDisp > (bufsize / 2)) ? offsetDisp - (bufsize / 2) : 0;
             }
             
-            if(onLoop && onLoop(offsetDisp, markedOffset, markedLength, selectMode))
-                return true;
-            
-            if(offsetDisp != offsetDispPrev) {
-                if((onUpdate != NULL) && onUpdate(offsetDisp))
+            // ONUPDATE FUNCTION
+            if((offsetDisp != offsetDispPrev) || (charIndex != charIndexPrev)) {
+                if((onUpdate != NULL) && onUpdate(offsetDisp, charIndex))
                     return true;
                 offsetDispPrev = offsetDisp;
+                charIndexPrev = charIndex;
             }
             
+            // ON SCREEN DISPLAY
             gpu::setViewport(gpu::SCREEN_BOTTOM, 0, 0, gpu::BOTTOM_WIDTH, gpu::BOTTOM_HEIGHT);
             gput::setOrtho(0, gpu::BOTTOM_WIDTH, 0, gpu::BOTTOM_HEIGHT, -1, 1);
             gpu::clear();
             
-            uiDrawPositionBar(offsetDisp, dispEnd - dispStart, fileSize);
             gput::drawString(dispString, 0, 0, 8, 8);
+            uiDrawPositionBar(offsetDisp, dispEnd - dispStart, fileSize, false);
+            uiDrawPositionBar(charIndex, nCharsDisp, lineLenCurr, true);
             
             gpu::flushCommands();
             gpu::flushBuffer();
