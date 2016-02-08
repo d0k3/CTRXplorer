@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     
-    const std::string title = "CTRX SD Explorer v0.9.2beta";
+    const std::string title = "CTRX SD Explorer v0.9.3";
     const u64 tapDelay = 240;
 
     bool launcher = core::launcher();
