@@ -639,6 +639,7 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                 } else if(lastScrollTime > 0) {
                     lastScrollTime = 0;
                 }
+                if(markedOffset >= fileSize) markedOffset = fileSize - 1;
             }
             
             if(forceRefresh) {
@@ -724,7 +725,7 @@ bool uiTextViewer(const std::string path, std::function<bool(void)> onLoop, std:
             for (lf = start; (lf < end) && localData[lf] != '\n'; lf++);
             while (lf - start > lineLenCurr) {
                 u32 space = (u32) -1;
-                for (u32 p = start; (p < end) && p < start + lineLenCurr; p++)
+                for (u32 p = start + 1; (p < end) && p < start + lineLenCurr; p++)
                     if(localData[p] == ' ') space = p;
                 if(space == (u32) -1) {
                     // no appropriate space character found -> forced word wrap
@@ -739,7 +740,7 @@ bool uiTextViewer(const std::string path, std::function<bool(void)> onLoop, std:
             } else break;
         }
         bufferMap.push_back(end);
-        lineIndexMax = (bufferMap.size() > nLinesDisp) ? bufferMap.size() - nLinesDisp: 0;
+        lineIndexMax = (bufferMap.size() > nLinesDisp) ? bufferMap.size() - nLinesDisp : 0;
         
         // normalize lineIndex
         for (lineIndex = lineIndexMax; (lineIndex > 0) &&
