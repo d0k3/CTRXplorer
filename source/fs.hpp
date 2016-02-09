@@ -32,10 +32,10 @@ std::vector<u8> fsDataGet(const std::string path, u32 offset, u32 size);
 bool fsDataReplace(const std::string path, const std::vector<u8> data, u32 offset, u32 size);
 bool fsDataProvider(const std::string path, u32 offset, u32 buffSize, std::function<bool(u32 &offset, bool &forceRefresh)> onLoop, std::function<bool(u8* data)> onUpdate);
 bool fsPathDelete(const std::string path);
-bool fsPathCopy(const std::string path, const std::string dest, bool showProgress = false);
-bool fsPathRename(const std::string path, const std::string dest);
+bool fsPathCopy(const std::string path, const std::string dest, bool overwrite = false, bool showProgress = false);
+bool fsPathRename(const std::string path, const std::string dest, bool overwrite = false);
 bool fsCreateDir(const std::string path);
-bool fsCreateDummyFile(const std::string path, u64 size = 0, u16 content = 0x0000, bool showProgress = false);
+bool fsCreateDummyFile(const std::string path, u64 size = 0, u16 content = 0x0000, bool overwrite = false, bool showProgress = false);
 std::vector<FileInfo> fsGetDirectoryContents(const std::string directory);
 std::vector<FileInfoEx> fsGetDirectoryContentsEx(const std::string directory);
 

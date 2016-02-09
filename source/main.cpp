@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     
-    const std::string title = "CTRX SD Explorer v0.9.3";
+    const std::string title = "CTRX SD Explorer v0.9.4";
     const u64 tapDelay = 240;
 
     bool launcher = core::launcher();
@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
                         resetCursor = false;
                     }
                 } else {
-                    int failCount = 0;
+                    u32 successCount = 0;
                     std::stringstream object;
                     if((*markedElements).size() == 1) {
                         object << "\"" << uiTruncateString((**((*markedElements).begin())).name, 24, -8) << "\"";
@@ -90,13 +90,12 @@ int main(int argc, char **argv) {
                             if(!fsPathDelete((**it).id)) {
                                 std::set<SelectableElement*>::iterator next = it;
                                 next++;
-                                failCount++;
                                 if (!uiErrorPrompt(gpu::SCREEN_TOP, "Deleting", (**it).name, true, next != (*markedElements).end())) break;
-                            }
+                            } else successCount++;
                         }
-                        if((failCount > 0) && ((*markedElements).size() > 1)) {
+                        if((successCount < (*markedElements).size()) && ((*markedElements).size() > 1)) {
                             std::stringstream errorMsg;
-                            errorMsg << "Deleted" << ((*markedElements).size() - failCount) << " of " << (*markedElements).size() << " paths!" << "\n";
+                            errorMsg << "Deleted" << successCount << " of " << (*markedElements).size() << " paths!" << "\n";
                             uiPrompt(gpu::SCREEN_TOP, errorMsg.str(), false);
                         }
                         freeSpace = fsGetFreeSpace();
@@ -127,28 +126,34 @@ int main(int argc, char **argv) {
             case A_COPY:    
             case A_MOVE: {
                 if(!clipboard.empty()) {
-                    int failCount = 0;
+                    u32 successCount = 0;
                     std::stringstream object;
                     if(clipboard.size() == 1) object << "\"" << uiTruncateString(clipboard.at(0).name, 18, -8) << "\"";
                     else object << clipboard.size() << " paths";
                     std::string confirmMsg = ((action == A_COPY) ? "Copy " : "Move ") + object.str() + " to this destination?" + "\n";
                     if(uiPrompt(gpu::SCREEN_TOP, confirmMsg, true)) {
-                        bool fail = false;
                         for(std::vector<SelectableElement>::iterator it = clipboard.begin(); it != clipboard.end(); it++) {
                             const std::string dest = (currentDir.compare("/") == 0) ? "/" + (*it).name : currentDir + "/" + (*it).name;
-                            fail = (action == A_COPY) ?
-                                !fsPathCopy((*it).id, dest, true) :
-                                !fsPathRename((*it).id, dest);
-                            if(fail) {
-                                failCount++;
-                                std::string operationStr = (action == A_COPY) ? "Copying" : "Moving";
-                                if (!uiErrorPrompt(gpu::SCREEN_TOP, operationStr, (*it).name, true, it + 1 != clipboard.end())) break;
+                            bool fail = false;
+                            bool overwrite = false;
+                            if(fsExists(dest)) {
+                                std::string existMsg = "Destination exists: " + uiTruncateString((*it).name, 28, -8) + "\n" + "Overwrite existing file(s)?" + "\n";
+                                overwrite = uiPrompt(gpu::SCREEN_TOP, existMsg, true);
+                                if (!overwrite) continue;
                             }
+                            fail = (action == A_COPY) ?
+                                !fsPathCopy((*it).id, dest, overwrite, true) :
+                                !fsPathRename((*it).id, dest, overwrite);
+                            if(fail) {
+                                std::string operationStr = (action == A_COPY) ? "Copying" : "Moving";
+                                if(!uiErrorPrompt(gpu::SCREEN_TOP, operationStr, (*it).name, true, it + 1 != clipboard.end())) 
+                                    break;
+                            } else successCount++;
                         }
-                        if((failCount > 0) && (clipboard.size() > 1)) {
+                        if((successCount < clipboard.size()) && (clipboard.size() > 1)) {
                             std::stringstream errorMsg;
                             errorMsg << ((action == A_COPY) ? "Copied " : "Moved ");
-                            errorMsg << (clipboard.size() - failCount) << " of " << clipboard.size() << " paths!" << "\n";
+                            errorMsg << successCount << " of " << clipboard.size() << " paths!" << "\n";
                             uiPrompt(gpu::SCREEN_TOP, errorMsg.str(), false);
                         }
                         freeSpace = fsGetFreeSpace();
@@ -180,7 +185,12 @@ int main(int argc, char **argv) {
                 std::string confirmMsg = "Generate " + object.str() + " here?\nEnter name below:\n";
                 std::string name = uiStringInput(gpu::SCREEN_TOP, "dummy.bin", alphabet, confirmMsg);
                 if(!name.empty()) {
-                    if(!fsCreateDummyFile(currentDir + "/" + name, dummySize, dummyContent, true)) {
+                    bool overwrite = false;
+                    if(fsExists(currentDir + "/" + name)) {
+                        std::string existMsg = "Destination already exists. Overwrite?\n";
+                        overwrite = uiPrompt(gpu::SCREEN_TOP, existMsg, true);
+                    }
+                    if(!fsCreateDummyFile(currentDir + "/" + name, dummySize, dummyContent, overwrite, true)) {
                         uiErrorPrompt(gpu::SCREEN_TOP, "Generating", name, true, false);
                     } 
                     freeSpace = fsGetFreeSpace();

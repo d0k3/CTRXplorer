@@ -338,10 +338,17 @@ bool fsPathDelete(const std::string path) {
     } else return (remove(path.c_str()) == 0);
 }
 
-bool fsPathCopy(const std::string path, const std::string dest, bool showProgress) {
+bool fsPathCopy(const std::string path, const std::string dest, bool overwrite, bool showProgress) {
     if(fsExists(dest)) {
-        errno = EEXIST;
-        return false;
+       if(!overwrite) {
+            errno = EEXIST;
+            return false;
+        } else if(path.compare(dest) == 0) {
+            errno = EACCES;
+            return false;
+        } else if(fsIsDirectory(path) != fsIsDirectory(dest)) {
+            if (!fsPathDelete(dest)) return false;
+        }
     }
     if(showProgress && !fsShowProgress("Copying", path, 0, 1)) {
         errno = ECANCELED;
@@ -352,14 +359,15 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
             errno = ENOTSUP;
             return false;
         }
-        if(mkdir(dest.c_str(), 0777) != 0) return false;
+        if(overwrite && fsIsDirectory(dest));
+        else if(mkdir(dest.c_str(), 0777) != 0) return false;
         if(showProgress && !fsShowProgress("Copying", path, 1, 2)) {
             errno = ECANCELED;
             return false;
         }
         std::vector<FileInfo> contents = fsGetDirectoryContents(path);
         for (std::vector<FileInfo>::iterator it = contents.begin(); it != contents.end(); it++)
-            if (!fsPathCopy((*it).path, dest + "/" + (*it).name, showProgress)) return false;
+            if (!fsPathCopy((*it).path, dest + "/" + (*it).name, overwrite, showProgress)) return false;
         return true;
     } else {
         bool ret = true;
@@ -388,14 +396,24 @@ bool fsPathCopy(const std::string path, const std::string dest, bool showProgres
     }
 }
 
-bool fsPathRename(const std::string path, const std::string dest) {
+bool fsPathRename(const std::string path, const std::string dest, bool overwrite) {
     if(dest.find(path + "/") != std::string::npos) {
         errno = ENOTSUP;
         return false;
     }
     if(fsExists(dest)) {
-        errno = EEXIST;
-        return false;
+        if(!overwrite) {
+            errno = EEXIST;
+            return false;
+        } else if(path.compare(dest) == 0) {
+            errno = EACCES;
+            return false;
+        } else if(fsIsDirectory(path) && fsIsDirectory(dest)) {
+            std::vector<FileInfo> contents = fsGetDirectoryContents(path);
+            for (std::vector<FileInfo>::iterator it = contents.begin(); it != contents.end(); it++)
+                if (!fsPathRename((*it).path, dest + "/" + (*it).name, overwrite)) return false;
+            return (rmdir(path.c_str()) == 0);
+        } else if (!fsPathDelete(dest)) return false;
     }
     return (rename(path.c_str(), dest.c_str()) == 0);
 }
@@ -408,8 +426,8 @@ bool fsCreateDir(const std::string path) {
     return (mkdir(path.c_str(), 0777) == 0);
 }
 
-bool fsCreateDummyFile(const std::string path, u64 size, u16 content, bool showProgress) {
-    if(fsExists(path)) {
+bool fsCreateDummyFile(const std::string path, u64 size, u16 content, bool overwrite, bool showProgress) {
+    if(!overwrite && fsExists(path)) {
         errno = EEXIST;
         return false;
     }
