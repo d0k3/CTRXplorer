@@ -132,14 +132,23 @@ int main(int argc, char **argv) {
                     else object << clipboard.size() << " paths";
                     std::string confirmMsg = ((action == A_COPY) ? "Copy " : "Move ") + object.str() + " to this destination?" + "\n";
                     if(uiPrompt(gpu::SCREEN_TOP, confirmMsg, true)) {
+                        bool overwrite = false;
+                        bool overwrite_remember = false;
+                        bool overwrite_remember_ask = true;
                         for(std::vector<SelectableElement>::iterator it = clipboard.begin(); it != clipboard.end(); it++) {
                             const std::string dest = (currentDir.compare("/") == 0) ? "/" + (*it).name : currentDir + "/" + (*it).name;
                             bool fail = false;
-                            bool overwrite = false;
                             if(fsExists(dest)) {
-                                std::string existMsg = "Destination exists: " + uiTruncateString((*it).name, 28, -8) + "\n" + "Overwrite existing file(s)?" + "\n";
-                                overwrite = uiPrompt(gpu::SCREEN_TOP, existMsg, true);
-                                if (!overwrite) continue;
+                                if(!overwrite_remember) {
+                                    std::string existMsg = "Destination exists: " + uiTruncateString((*it).name, 28, -8) + "\n" + "Overwrite existing file(s)?" + "\n";
+                                    overwrite = uiPrompt(gpu::SCREEN_TOP, existMsg, true);
+                                    if(overwrite_remember_ask) {
+                                        existMsg = ((overwrite) ? "Overwrite all existing files?\n" : "Skip all existing files?\n");
+                                        overwrite_remember = uiPrompt(gpu::SCREEN_TOP, existMsg, true);
+                                        overwrite_remember_ask = false;
+                                    }
+                                }
+                                if(!overwrite) continue;
                             }
                             fail = (action == A_COPY) ?
                                 !fsPathCopy((*it).id, dest, overwrite, true) :

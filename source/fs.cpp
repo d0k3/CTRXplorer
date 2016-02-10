@@ -470,7 +470,7 @@ std::vector<FileInfo> fsGetDirectoryContents(const std::string directory) {
         return result;
     }
 
-    while(true) {
+    while(core::running()) {
         struct dirent* ent = readdir(dir);
         if(ent == NULL) {
             break;
@@ -492,7 +492,7 @@ std::vector<FileInfoEx> fsGetDirectoryContentsEx(const std::string directory) {
         return result;
     }
 
-    while(true) {
+    while(core::running()) {
         struct dirent* ent = readdir(dir);
         if(ent == NULL) {
             break;
