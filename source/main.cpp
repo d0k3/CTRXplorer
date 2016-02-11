@@ -166,7 +166,7 @@ int main(int argc, char **argv) {
                             uiPrompt(gpu::SCREEN_TOP, errorMsg.str(), false);
                         }
                         freeSpace = fsGetFreeSpace();
-                        clipboard.clear();
+                        if(action == A_MOVE) clipboard.clear();
                         updateList = true;
                         resetCursor = false;
                     }
