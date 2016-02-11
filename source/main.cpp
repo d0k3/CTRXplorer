@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
                     if(uiPrompt(gpu::SCREEN_TOP, confirmMsg, true)) {
                         bool overwrite = false;
                         bool overwrite_remember = false;
-                        bool overwrite_remember_ask = true;
+                        bool overwrite_remember_ask = (clipboard.size() > 1);
                         for(std::vector<SelectableElement>::iterator it = clipboard.begin(); it != clipboard.end(); it++) {
                             const std::string dest = (currentDir.compare("/") == 0) ? "/" + (*it).name : currentDir + "/" + (*it).name;
                             bool fail = false;
