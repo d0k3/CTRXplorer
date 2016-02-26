@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     
-    const std::string title = "CTRX SD Explorer v0.9.4";
+    const std::string title = "CTRX SD Explorer v0.9.5";
     const u64 tapDelay = 240;
 
     bool launcher = core::launcher();
@@ -112,7 +112,12 @@ int main(int argc, char **argv) {
                     std::string confirmMsg = "Rename \"" + uiTruncateString(currentFile.name, 24, -8) + "\"?\nEnter new name below:\n";
                     std::string name = uiStringInput(gpu::SCREEN_TOP, currentFile.name, alphabet, confirmMsg);
                     if(!name.empty()) {
-                        if(!fsPathRename(currentFile.id, currentDir + "/" + name)) {
+                        bool overwrite = false;
+                        if(fsExists(currentDir + "/" + name)) {
+                            std::string existMsg = "Destination already exists. Overwrite?\n";
+                            overwrite = uiPrompt(gpu::SCREEN_TOP, existMsg, true);
+                        }
+                        if(!fsPathRename(currentFile.id, currentDir + "/" + name, overwrite)) {
                             uiErrorPrompt(gpu::SCREEN_TOP, "Renaming", currentFile.name, true, false);
                         } else {
                             updateList = true;
