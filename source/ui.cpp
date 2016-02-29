@@ -776,7 +776,7 @@ bool uiTextViewer(const std::string path, std::function<bool(void)> onLoop, std:
                     } else if(hid::held(hid::BUTTON_UP) && (lineIndex > 0)) {
                         lineIndex--;
                     } else if(hid::held(hid::BUTTON_R)) {
-                        lineIndex = (lineIndex < lineIndexMax - nLinesDisp) ?
+                        lineIndex = (lineIndex + nLinesDisp < lineIndexMax) ?
                             lineIndex + nLinesDisp : lineIndexMax;
                     } else if(hid::held(hid::BUTTON_L)) {
                         lineIndex = (lineIndex > nLinesDisp) ?
