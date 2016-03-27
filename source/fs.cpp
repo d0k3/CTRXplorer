@@ -396,7 +396,7 @@ bool fsPathCopy(const std::string path, const std::string dest, bool overwrite, 
     }
 }
 
-bool fsPathRename(const std::string path, const std::string dest, bool overwrite) {
+bool fsPathMove(const std::string path, const std::string dest, bool overwrite) {
     if(dest.find(path + "/") != std::string::npos) {
         errno = ENOTSUP;
         return false;
@@ -411,11 +411,29 @@ bool fsPathRename(const std::string path, const std::string dest, bool overwrite
         } else if(fsIsDirectory(path) && fsIsDirectory(dest)) {
             std::vector<FileInfo> contents = fsGetDirectoryContents(path);
             for (std::vector<FileInfo>::iterator it = contents.begin(); it != contents.end(); it++)
-                if (!fsPathRename((*it).path, dest + "/" + (*it).name, overwrite)) return false;
+                if (!fsPathMove((*it).path, dest + "/" + (*it).name, overwrite)) return false;
             return (rmdir(path.c_str()) == 0);
         } else if (!fsPathDelete(dest)) return false;
     }
     return (rename(path.c_str(), dest.c_str()) == 0);
+}
+
+bool fsPathRename(const std::string path, const std::string dest) {
+    if(dest.find(path + "/") != std::string::npos) {
+        errno = ENOTSUP;
+        return false;
+    }
+    if (fsExists(dest)) { // handle case sensitive rename
+        std::string tmpname(dest);
+        for (; fsExists(tmpname); tmpname.append(1, '_'));
+        if (rename(path.c_str(), tmpname.c_str()) == 0) {
+            if (fsExists(dest)) {
+                rename(tmpname.c_str(), path.c_str());
+                errno = EEXIST;
+                return false;
+            } else return (rename(tmpname.c_str(), dest.c_str()) == 0);
+        } else return false;
+    } else return (rename(path.c_str(), dest.c_str()) == 0);
 }
 
 bool fsCreateDir(const std::string path) {

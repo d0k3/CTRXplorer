@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     
-    const std::string title = "CTRX SD Explorer v0.9.5a";
+    const std::string title = "CTRX SD Explorer v0.9.5b";
     const u64 tapDelay = 240;
 
     bool launcher = core::launcher();
@@ -112,12 +112,7 @@ int main(int argc, char **argv) {
                     std::string confirmMsg = "Rename \"" + uiTruncateString(currentFile.name, 24, -8) + "\"?\nEnter new name below:\n";
                     std::string name = uiStringInput(gpu::SCREEN_TOP, currentFile.name, alphabet, confirmMsg);
                     if(!name.empty()) {
-                        bool overwrite = false;
-                        if(fsExists(currentDir + "/" + name)) {
-                            std::string existMsg = "Destination already exists. Overwrite?\n";
-                            overwrite = uiPrompt(gpu::SCREEN_TOP, existMsg, true);
-                        }
-                        if(!fsPathRename(currentFile.id, currentDir + "/" + name, overwrite)) {
+                        if(!fsPathRename(currentFile.id, currentDir + "/" + name)) {
                             uiErrorPrompt(gpu::SCREEN_TOP, "Renaming", currentFile.name, true, false);
                         } else {
                             updateList = true;
@@ -157,7 +152,7 @@ int main(int argc, char **argv) {
                             }
                             fail = (action == A_COPY) ?
                                 !fsPathCopy((*it).id, dest, overwrite, true) :
-                                !fsPathRename((*it).id, dest, overwrite);
+                                !fsPathMove((*it).id, dest, overwrite);
                             if(fail) {
                                 std::string operationStr = (action == A_COPY) ? "Copying" : "Moving";
                                 if(!uiErrorPrompt(gpu::SCREEN_TOP, operationStr, (*it).name, true, it + 1 != clipboard.end())) 
