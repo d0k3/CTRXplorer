@@ -518,7 +518,7 @@ std::vector<FileInfoEx> fsGetDirectoryContentsEx(const std::string directory) {
         const std::string name = std::string(ent->d_name);
         if((name.compare(".") != 0) && (name.compare("..") != 0)) {
             const std::string path = dirWithSlash + std::string(ent->d_name);
-            bool isDirectory = fsIsDirectory(path);
+            bool isDirectory = (ent->d_type == DT_DIR);
             result.push_back({path, std::string(ent->d_name), isDirectory});
         }
     }
