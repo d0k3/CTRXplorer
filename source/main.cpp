@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     
-    const std::string title = "CTRX SD Explorer v0.9.6";
+    const std::string title = "CTRX SD Explorer v0.9.7";
     const u64 tapDelay = 240;
 
     bool launcher = core::launcher();
@@ -71,6 +71,7 @@ int main(int argc, char **argv) {
                         std::string confirmMsg = "Delete \"" + uiTruncateString(currentFile.name, 24, -8) + "\"?" + "\n";
                         if(uiPrompt(gpu::SCREEN_TOP, confirmMsg, true)) {
                             if(!fsPathDelete(currentFile.id)) {
+                                if (errno == ENOENT) errno = EACCES; // errno fix for write protected files
                                 uiErrorPrompt(gpu::SCREEN_TOP, "Deleting", currentFile.name, true, false);
                             }
                         }
@@ -90,6 +91,7 @@ int main(int argc, char **argv) {
                             if(!fsPathDelete((**it).id)) {
                                 std::set<SelectableElement*>::iterator next = it;
                                 next++;
+                                if (errno == ENOENT) errno = EACCES; // errno fix for write protected files
                                 if (!uiErrorPrompt(gpu::SCREEN_TOP, "Deleting", (**it).name, true, next != (*markedElements).end())) break;
                             } else successCount++;
                         }
