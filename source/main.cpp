@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
             case A_RENAME: {
                 if(currentFile.name.compare("..") != 0) { // RENAME
                     std::string confirmMsg = "Rename \"" + uiTruncateString(currentFile.name, 24, -8) + "\"?\nEnter new name below:\n";
-                    std::string name = uiStringInput(gpu::SCREEN_TOP, currentFile.name, alphabet, confirmMsg);
+                    std::string name = uiStringInput(gpu::SCREEN_TOP, currentFile.name, alphabet, confirmMsg, 1, true);
                     if(!name.empty()) {
                         if(!fsPathRename(currentFile.id, currentDir + "/" + name)) {
                             uiErrorPrompt(gpu::SCREEN_TOP, "Renaming", currentFile.name, true, false);
@@ -178,7 +178,7 @@ int main(int argc, char **argv) {
                 
             case A_CREATE_DIR: {
                 std::string confirmMsg = "Create new folder here?\nEnter name below:\n";
-                std::string name = uiStringInput(gpu::SCREEN_TOP, "newdir", alphabet, confirmMsg); 
+                std::string name = uiStringInput(gpu::SCREEN_TOP, "newdir", alphabet, confirmMsg, 1, true); 
                 if(!name.empty()) {
                     if(!fsCreateDir(currentDir + "/" + name)) {
                         uiErrorPrompt(gpu::SCREEN_TOP, "Create Folder", name, true, false);
@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
                 if(dummySize == 0) object << "zero byte dummy file";
                 else object << uiFormatBytes(dummySize) << " dummy file";
                 std::string confirmMsg = "Generate " + object.str() + " here?\nEnter name below:\n";
-                std::string name = uiStringInput(gpu::SCREEN_TOP, "dummy.bin", alphabet, confirmMsg);
+                std::string name = uiStringInput(gpu::SCREEN_TOP, "dummy.bin", alphabet, confirmMsg, 1, true);
                 if(!name.empty()) {
                     bool overwrite = false;
                     if(fsExists(currentDir + "/" + name)) {
@@ -504,7 +504,7 @@ int main(int argc, char **argv) {
                     } else {
                         const std::string alphabet = "?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]<>/\\|*:=+-_.'\"`^,~!@#$%& 0123456789";
                         std::string confirmMsg = "Enter search string below:\n";
-                        std::string searchStr = uiStringInput(gpu::SCREEN_TOP, hvLastSearchStr, alphabet, confirmMsg);
+                        std::string searchStr = uiStringInput(gpu::SCREEN_TOP, hvLastSearchStr, alphabet, confirmMsg, 1, true);
                         if(!searchStr.empty()) {
                             u32 offsetNew;
                             hvLastSearchStr = searchStr;

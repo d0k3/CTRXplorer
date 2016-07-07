@@ -1,6 +1,8 @@
 #include "ui.hpp"
 #include "fs.hpp"
 
+#include <3ds.h>
+
 #include <citrus/core.hpp>
 #include <citrus/gpu.hpp>
 #include <citrus/gput.hpp>
@@ -946,7 +948,31 @@ bool uiErrorPrompt(gpu::Screen screen, const std::string operationStr, const std
     return result;
 }
 
-std::string uiStringInput(gpu::Screen screen, std::string preset, const std::string alphabet, const std::string message, u32 resize) {
+std::string uiKeyboardInput(std::string preset, const std::string alphabet) {
+    std::string resultStr = preset;
+
+    while(core::running()) {
+        char textbuffer[1024];
+        SwkbdState swkbd;    
+        swkbdInit(&swkbd, SWKBD_TYPE_WESTERN, 2, -1);
+        swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY_NOTBLANK, SWKBD_FILTER_BACKSLASH, 0);
+        swkbdSetFeatures(&swkbd, SWKBD_DARKEN_TOP_SCREEN);
+        swkbdSetInitialText(&swkbd, resultStr.c_str());
+        if(swkbdInputText(&swkbd, textbuffer, sizeof(textbuffer)) == SWKBD_BUTTON_CONFIRM) {
+            resultStr = std::string(textbuffer);
+            if(resultStr.find_first_not_of(alphabet, 0) != std::string::npos) {
+                uiPrompt(gpu::SCREEN_TOP, (std::string) "Input contains invalid characters." + "\n" + "Try again?" + "\n", true);
+            } else break;
+        } else {
+            resultStr.clear();
+            break;
+        }
+    }
+    
+    return resultStr;
+}
+
+std::string uiStringInput(gpu::Screen screen, std::string preset, const std::string alphabet, const std::string message, u32 resize, bool allow_keyboard) {
     const int dispSize = 30;
     const u64 tapDelay = 360;
     const u64 scrollDelay = 120;
@@ -975,14 +1001,17 @@ std::string uiStringInput(gpu::Screen screen, std::string preset, const std::str
         for(int i = scroll; i <= cursor_s; i++) stream << " ";
         stream << "^" << "\n" << "\n";
         stream << "L - [h] (" << (char) 0x18 << (char) 0x19 << ") fast scroll" << "\n";
+        if (allow_keyboard) {
+            stream << "R - use touchscreen keyboard" << "\n";
+        }
         if(resize) {
             stream << "X - [t] remove char / [h] clear" << "\n";
-            stream << "Y - [t] insert char / [h] reset" << "\n" << "\n";
+            stream << "Y - [t] insert char / [h] reset" << "\n";
         } else {
             stream << "X - [h] clear" << "\n";
-            stream << "Y - [h] reset" << "\n" << "\n";
+            stream << "Y - [h] reset" << "\n";
         }
-        stream << "Press A to confirm, B to cancel." << "\n";
+        stream << "\n" << "Press A to confirm, B to cancel." << "\n";
     
         hid::poll();
         
@@ -994,6 +1023,15 @@ std::string uiStringInput(gpu::Screen screen, std::string preset, const std::str
         if(hid::pressed(hid::BUTTON_B)) {
             result = false;
             break;
+        }
+        
+        if(allow_keyboard && hid::pressed(hid::BUTTON_R)) {
+            std::string keyboard = uiKeyboardInput(resultStr, alphabet);
+            if (!keyboard.empty()) {
+                resultStr = keyboard;
+                while(cursor_s >= (int) resultStr.size()) cursor_s--;
+                cursor_a = -1;
+            }
         }
         
         if(hid::held(hid::BUTTON_X) && (inputXHoldTime != (u64) -1)) {
