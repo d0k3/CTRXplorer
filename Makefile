@@ -49,6 +49,7 @@ ROMFS_DIR :=
 BANNER_AUDIO := meta/audio.wav
 BANNER_IMAGE := meta/banner.png
 ICON := meta/icon.png
+LOGO := meta/logo.bcma.lz
 
 # INTERNAL #
 
