@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     
-    const std::string title = "CTRX SD Explorer v0.9.7";
+    const std::string title = "CTRX SD Explorer v0.9.8";
     const u64 tapDelay = 240;
 
     bool launcher = core::launcher();
@@ -262,6 +262,7 @@ int main(int argc, char **argv) {
         } else {
             stream << "Y - [h] ("  << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") / [t] PASTE data" << "\n";
         }
+        stream << "R - [h] ("  << (char) 0x18 << (char) 0x19 << (char) 0x1A << (char) 0x1B << ") / [t] EDIT string" << "\n";
         if(hvClipboard.size()) stream << "SELECT - Clear paste data" << "\n";
         
         return stream.str();
@@ -570,7 +571,25 @@ int main(int argc, char **argv) {
     auto onSelectHexViewer = [&](u32 selectedOffset, u32 selectedLength, hid::Button selectButton, bool &forceRefresh) {
         bool breakLoop = false;
         
-        if(selectButton == hid::BUTTON_A) { // A - EDIT DATA
+        if(selectButton == hid::BUTTON_R) { // R - EDIT STRING
+            const std::string alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(){}[]<>/\\|*:=+-_.'\"`^,~!@#$%&?0123456789";
+            std::string confirmMsg = "Enter new string below:\n";
+            std::vector<u8> input = fsDataGet(currentFile.id, selectedOffset, selectedLength);
+            std::string inputstr((char*) input.data(), input.size());
+            if(inputstr.find_first_not_of(alphabet) != std::string::npos) {
+                uiPrompt(gpu::SCREEN_TOP, "Selected area is not a string.\n\nHint: It may contain line feeds,\nzeroes or special chars.\n", false);
+            } else if(inputstr.size() != selectedLength) {
+                uiErrorPrompt(gpu::SCREEN_TOP, "Reading", currentFile.id, true, false);
+            } else {
+                inputstr = uiStringInput(gpu::SCREEN_TOP, inputstr, alphabet, confirmMsg, true);
+                input = std::vector<u8>(inputstr.begin(), inputstr.end());
+                if(!input.empty() && (input.size() != selectedLength) &&
+                    !uiPrompt(gpu::SCREEN_TOP, "Warning: This will change file size.\n", true));
+                else if(!input.empty() && !fsDataReplace(currentFile.id, input, selectedOffset, selectedLength))
+                    uiErrorPrompt(gpu::SCREEN_TOP, "Writing", currentFile.id, true, false);
+                else forceRefresh = true;
+            }
+        } else if(selectButton == hid::BUTTON_A) { // A - EDIT DATA
             std::string confirmMsg = "Enter new hex value(s) below:\n";
             std::vector<u8> input = fsDataGet(currentFile.id, selectedOffset, selectedLength);
             if(input.size() != selectedLength) {

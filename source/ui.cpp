@@ -584,6 +584,10 @@ bool uiHexViewer(const std::string path, u32 start, std::function<bool(u32 &offs
                     selectOffset = markedOffset;
                     markedLength = 1;
                     selectButton = hid::BUTTON_Y;
+                } else if(hid::pressed(hid::BUTTON_R)) {
+                    selectOffset = markedOffset;
+                    markedLength = 1;
+                    selectButton = hid::BUTTON_R;
                 } else if(hid::released(selectButton)) {
                     if(onSelect && onSelect(markedOffset, markedLength, selectButton, forceRefresh))
                         return true;
