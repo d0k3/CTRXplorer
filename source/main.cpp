@@ -581,7 +581,7 @@ int main(int argc, char **argv) {
             } else if(inputstr.size() != selectedLength) {
                 uiErrorPrompt(gpu::SCREEN_TOP, "Reading", currentFile.id, true, false);
             } else {
-                inputstr = uiStringInput(gpu::SCREEN_TOP, inputstr, alphabet, confirmMsg, true);
+                inputstr = uiStringInput(gpu::SCREEN_TOP, inputstr, alphabet, confirmMsg, 1, true);
                 input = std::vector<u8>(inputstr.begin(), inputstr.end());
                 if(!input.empty() && (input.size() != selectedLength) &&
                     !uiPrompt(gpu::SCREEN_TOP, "Warning: This will change file size.\n", true));
