@@ -70,6 +70,7 @@ int main(int argc, char **argv) {
                     if(currentFile.name.compare("..") != 0) {
                         std::string confirmMsg = "Delete \"" + uiTruncateString(currentFile.name, 24, -8) + "\"?" + "\n";
                         if(uiPrompt(gpu::SCREEN_TOP, confirmMsg, true)) {
+                            uiDisplayMessage(gpu::SCREEN_TOP, "Deleting files, please wait...");
                             if(!fsPathDelete(currentFile.id)) {
                                 if (errno == ENOENT) errno = EACCES; // errno fix for write protected files
                                 uiErrorPrompt(gpu::SCREEN_TOP, "Deleting", currentFile.name, true, false);
@@ -86,7 +87,8 @@ int main(int argc, char **argv) {
                         object << "\"" << uiTruncateString((**((*markedElements).begin())).name, 24, -8) << "\"";
                     } else object << (*markedElements).size() << " paths";
                     std::string confirmMsg = "Delete " + object.str() + "?" + "\n";
-                    if(uiPrompt(gpu::SCREEN_TOP, confirmMsg, true)) {                        
+                    if(uiPrompt(gpu::SCREEN_TOP, confirmMsg, true)) {
+                        uiDisplayMessage(gpu::SCREEN_TOP, "Deleting files, please wait...");
                         for(std::set<SelectableElement*>::iterator it = (*markedElements).begin(); it != (*markedElements).end(); it++) {
                             if(!fsPathDelete((**it).id)) {
                                 std::set<SelectableElement*>::iterator next = it;
